@@ -54,7 +54,7 @@ typedef struct {
    bool pressed;     // just pressed this frame
    bool held;        // currently being held
    bool released;    // just released this frame
-   float duration;   // how long held in ms
+   float duration;   // how long held in seconds
    bool prev_state;  // previous frame state for edge detection
 } InputState;
 
@@ -111,7 +111,7 @@ typedef struct {
    
    // input buffering for reliability
    bool input_buffer_enabled;
-   float input_buffer_time;  // time to buffer inputs (in seconds)
+   float input_buffer_time;  // time to buffer inputs (in ms)
 } InputSystem;
 
 // global input system

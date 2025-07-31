@@ -495,9 +495,9 @@ void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, i
       font->tile_h
    };
    
-   d_logv(3, "Char: %c, Index: %d, Tile: [%d, %d], SrcRect: [%d, %d, %d, %d]\n",
-          c, sheet_index, tile_x, tile_y,
-          src_rect.x, src_rect.y, src_rect.w, src_rect.h);
+   // d_logv(3, "Char: %c, Index: %d, Tile: [%d, %d], SrcRect: [%d, %d, %d, %d]\n",
+          // c, sheet_index, tile_x, tile_y,
+          // src_rect.x, src_rect.y, src_rect.w, src_rect.h);
    
    renderer_blit_masked(handle, font->data, src_rect, x, y, color_index);
 }
@@ -526,9 +526,9 @@ void renderer_draw_string(LayerHandle handle, FontType font_type, const char* st
          font->tile_w,
          font->tile_h
       };
-      d_logv(3, "Char: %c, Index: %d, Tile: [%d, %d], SrcRect: [%d, %d, %d, %d]\n",
-          str[i], sheet_index, tile_x, tile_y,
-          src_rect.x, src_rect.y, src_rect.w, src_rect.h);
+      // d_logv(3, "Char: %c, Index: %d, Tile: [%d, %d], SrcRect: [%d, %d, %d, %d]\n",
+          // str[i], sheet_index, tile_x, tile_y,
+          // src_rect.x, src_rect.y, src_rect.w, src_rect.h);
       x += (font->tile_w * layer->size);
       renderer_blit_masked(handle, font->data, src_rect, x, y, color_index);
    }
