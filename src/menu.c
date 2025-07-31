@@ -22,7 +22,7 @@ void menu_system_init(void) {
    }
 }
 
-void menu_handle_input(InputEvent event, int device_id) {
+void menu_handle_input(InputEvent event) {
    if (d_dne(active_menu)) return;
    
    switch (event) {
@@ -239,7 +239,7 @@ int menu_get_cursor_position(void) {
    return menu_traverse(menus[0], &counter, -1, false);
 }
 
-void menu_set_cursor_position(Menu* menu, int menu_position) {
+void menu_set_cursor_position(int menu_position) {
    if (!menus[0]) return;
 
    for (int i = 0; i < menu_count; i++) {

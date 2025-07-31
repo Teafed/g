@@ -63,7 +63,7 @@ typedef struct Menu {
 // menu system
 void menu_system_init(void);
 #include "input.h"
-void menu_handle_input(InputEvent event, int device_id);
+void menu_handle_input(InputEvent event);
 void menu_update_display(void);
 void menu_destroy(void);
 
@@ -74,7 +74,7 @@ void menu_add_setting_option(Menu* menu, const char* text, char* values[], int v
 Menu* menu_get_active(void);
 void menu_set_active(Menu* menu);
 int menu_get_cursor_position(void);
-void menu_set_cursor_position(Menu* menu, int menu_position);
+void menu_set_cursor_position(int menu_position);
 
 // menu navigation
 void menu_move_up(Menu* menu);
