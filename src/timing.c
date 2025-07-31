@@ -1,12 +1,11 @@
 #include "timing.h"
+#include "debug.h"
+#include <SDL2/SDL.h>
 
 static TimingState g_timing = { 0 };
 
 void timing_init(uint32_t target_fps) {
-   if (target_fps == 0) {
-      printf("cmon man\n");
-      return;
-   }
+   if (target_fps == 0) { d_log("cmon man. fps set to 60"); target_fps = 60; }
    g_timing.target_fps = target_fps;
    g_timing.target_frame_time = 1000 / target_fps;  // ms per frame
    g_timing.frame_start_time = SDL_GetTicks();
@@ -52,6 +51,10 @@ bool timing_should_limit_frame(void) {
    return (g_timing.last_frame_time < g_timing.target_frame_time);
 }
 
+uint32_t timing_get_last_frame_time(void) {
+   return g_timing.last_frame_time;
+}
+
 uint32_t timing_get_frame_duration(void) {
    if (g_timing.last_frame_time >= g_timing.target_frame_time) {
       return 0;  // already over budget...
@@ -60,9 +63,21 @@ uint32_t timing_get_frame_duration(void) {
 }
 
 float timing_get_delta_time(void) {
-   float delta = g_timing.last_frame_time / 1000.0f;
-   // clamp to prevent huge jumps on lag - might have to adjust
-   if (delta > 0.1f) delta = 0.1f;
+   static uint32_t previous_frame_start = 0;
+   
+   if (previous_frame_start == 0) {
+      previous_frame_start = g_timing.frame_start_time;
+      return 1.0f / g_timing.target_fps;  // return target delta for first frame
+   }
+   
+   float delta = (g_timing.frame_start_time - previous_frame_start) / 1000.0f;
+   previous_frame_start = g_timing.frame_start_time;
+   
+   // only clamp if delta is way off from target (like 5+ frames worth)
+   float expected_delta = g_timing.target_frame_time / 1000.0f;
+   if (delta > expected_delta * 5.0f) {
+      delta = expected_delta;  // reset to target on major hiccups
+   }
    return delta;
 }
 

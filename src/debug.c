@@ -64,25 +64,15 @@ const char* d_name_display_mode(DisplayMode mode) {
 }
 
 const char* d_name_rect(SDL_Rect* rect) {
+   // NOTE can't call d_name_rect twice in one printf function, otherwise both arguments will output the same. alternate:
+   // void d_name_rect(SDL_Rect* rect, char* out, size_t size) {
+   //    snprintf(out, size, "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
+   // }
+   // just declare two char buffers before calling
    static char buffer[64];
    snprintf(buffer, sizeof(buffer), "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
    return buffer;
 }
-
-/*
-NOTE above can't call d_name_rect twice in one printf function, otherwise both arguments will output the same
-alternate d_name_rect():
-void d_name_rect(SDL_Rect* rect, char* out, size_t size) {
-   snprintf(out, size, "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
-}
-
-use:
-char screen_buf[64], viewport_buf[64];
-d_name_rect(&g_renderer.screen, screen_buf, sizeof(screen_buf));
-d_name_rect(&g_renderer.viewport, viewport_buf, sizeof(viewport_buf));
-
-printf("Window: %s, Scale: %.2f, Viewport: %s\n", screen_buf, g_renderer.scale_factor, viewport_buf);
-*/
 
 // FILE
 const char* d_name_font(FontType type) {
@@ -103,11 +93,13 @@ void d_print_performance_info(void) {
    uint32_t avg_ms = 0;
    uint32_t frames_over = 0;
    timing_get_performance_info(&min_ms, &max_ms, &avg_ms, &frames_over);
-   printf("       frame_count = %d\n", timing_get_frame_count());
-   printf("    min_frame_time = %ums\n", min_ms);
-   printf("    max_frame_time = %ums\n", max_ms);
-   printf("    avg_frame_time = %ums\n", avg_ms);
-   printf("frames_over_budget = %u\n\n", frames_over);
+   d_log("======= FRAME %d ========", timing_get_frame_count());
+   d_log("   last_frame_time = %u ms", timing_get_last_frame_time());
+   d_log("    min_frame_time = %u ms", min_ms);
+   d_log("    max_frame_time = %u ms", max_ms);
+   d_log("    avg_frame_time = %u ms", avg_ms);
+   d_log("frames_over_budget = %u frames", frames_over);
+   d_log("==========================");
 }
 
 // INPUT

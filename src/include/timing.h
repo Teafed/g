@@ -1,13 +1,12 @@
 #ifndef TIMING_H
 #define TIMING_H
 
-#include <SDL2/SDL.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef struct {
    uint32_t target_fps;
-   uint32_t target_frame_time;     // ms per frame
+   uint32_t target_frame_time; // ms per frame
    uint32_t frame_start_time;
    uint32_t last_frame_time;
    uint32_t frame_count;
@@ -25,10 +24,11 @@ typedef struct {
 void timing_init(uint32_t target_fps);
 void timing_frame_start(void);
 void timing_frame_end(void);
-bool timing_should_limit_frame(void);
+bool timing_should_limit_frame(void); // true if last frame was quicker than target frame time
 
+uint32_t timing_get_last_frame_time(void);
 uint32_t timing_get_frame_duration(void);
-float timing_get_delta_time(void);
+float timing_get_delta_time(void); // last frame time in seconds
 uint32_t timing_get_frame_count(void);
 uint32_t timing_get_game_time_ms(void);
 float timing_get_current_fps(void);

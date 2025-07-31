@@ -7,6 +7,7 @@
 #include <SDL2/SDL.h>
 
 extern int LOG_VERBOSITY;
+#define DEBUG_LAG_TEST
 
 typedef enum {
    GAME_RUNNING,
@@ -41,19 +42,22 @@ int main(int argc, char* argv[]) {
    
    while (g_game.state == GAME_RUNNING) {
       timing_frame_start();
-      
-      float delta_time = timing_get_delta_time();  
+      float delta_time = timing_get_delta_time();
       game_handle_events(delta_time);  // input & devices
       game_update(delta_time);         // calculations for next frame
       game_render();                   // render next frame
 
+      #ifdef DEBUG_LAG_TEST
+      static int lag_counter = 0;
+      if (++lag_counter % 180 == 0) {  // every 3 seconds at 60fps
+         SDL_Delay(1000);  // simulate 100ms lag spike
+      }
+      #endif
+
       timing_frame_end();
-      if (timing_should_limit_frame()) {
-         SDL_Delay(timing_get_frame_duration());
-      }
-      if (timing_get_frame_count() == 6) {
-         // game_shutdown();
-      }
+
+      if (timing_should_limit_frame()) { SDL_Delay(timing_get_frame_duration()); }
+      // if (timing_get_frame_count() == 3) { game_shutdown(); }
    }
 
    return 0;

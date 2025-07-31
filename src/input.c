@@ -59,7 +59,8 @@ void input_update(float delta_time) {
          // if (currently_pressed) d_log("[%d]: %s", dev, d_name_input_event(event));
          if (event == INPUT_QUIT) {
             if (state->held) {
-               int wait = (state->duration * 2000);
+               // d_var(state->duration);
+               int wait = (state->duration * 1000.0f);
                if (wait >= 255) game_shutdown();
                // renderer_draw_system_quit((uint8_t)wait);
             }
