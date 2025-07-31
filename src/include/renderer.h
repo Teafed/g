@@ -140,8 +140,8 @@ void renderer_set_size(LayerHandle handle, uint8_t size);
 // drawing functions
 void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index); // affected by layer.size
-void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect* rect, uint8_t color_index);
-void renderer_draw_rect(LayerHandle handle, SDL_Rect* rect, uint8_t color_index);
+void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect rect, uint8_t color_index);
+void renderer_draw_rect(LayerHandle handle, SDL_Rect rect, uint8_t color_index);
 void renderer_draw_fill(LayerHandle handle, uint8_t color_index);
 #include "file.h"
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index); // affected by layer.size

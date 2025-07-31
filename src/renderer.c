@@ -454,11 +454,11 @@ void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) 
    SDL_FillRect(layer->surface, &pixel, color_index);
 }
 
-void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect* rect, uint8_t color_index) {
+void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect rect, uint8_t color_index) {
    Layer* layer = find_layer(handle);
-   if (!layer || !layer->surface || !rect || color_index >= PALETTE_SIZE) return;
+   if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
-   SDL_FillRect(layer->surface, rect, color_index);
+   SDL_FillRect(layer->surface, &rect, color_index);
 }
 
 void renderer_draw_fill(LayerHandle handle, uint8_t color_index) {
@@ -468,12 +468,12 @@ void renderer_draw_fill(LayerHandle handle, uint8_t color_index) {
    SDL_FillRect(layer->surface, NULL, color_index);
 }
 
-void renderer_draw_rect(LayerHandle handle, SDL_Rect* rect, uint8_t color_index) {
+void renderer_draw_rect(LayerHandle handle, SDL_Rect rect, uint8_t color_index) {
    Layer* layer = find_layer(handle);
-   if (!layer || !layer->surface || !rect || color_index >= PALETTE_SIZE) return;
+   if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
-   renderer_convert_game_to_screen(rect);
-   SDL_FillRect(layer->surface, rect, color_index);
+   renderer_convert_game_to_screen(&rect);
+   SDL_FillRect(layer->surface, &rect, color_index);
 }
 
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index) {
@@ -550,7 +550,7 @@ void renderer_draw_system_quit(uint8_t duration_held) {
    
    renderer_draw_string(handle, FONT_ACER_8_8, "Quitting game...", 1, 1, color);
    SDL_Rect asdf = {200, 200, 100, 100};
-   renderer_draw_rect(handle, &asdf, 11);
+   renderer_draw_rect(handle, asdf, 11);
 }
 
 // UTILITY FUNCTIONS
