@@ -232,6 +232,7 @@ void title_scene_init(void) {
 }
 
 void title_scene_update(float delta_time) {
+   (void)delta_time;
    // no need for continuous updates rn
 }
 
@@ -310,6 +311,7 @@ void title_scene_render(void) {
 
 extern void game_shutdown(void);
 void title_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
    if (event == INPUT_START || event == INPUT_A) {
       // first input detected - assign as player 1
       if (input_get_player_device(1) == -1) {
@@ -355,21 +357,21 @@ void main_menu_scene_init(void) {
 }
 
 void main_menu_scene_update(float delta_time) {
+   (void)delta_time;
    // update input display
    main_menu_update_input_display();
 }
 
 void main_menu_scene_render(void) {
-   // menu rendering is handled by menu system
-   // input display is handled separately as well
-   // so idk what i have this function for lol
+   // TODO: transfer rendering stuff over here
 }
 
 void main_menu_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
    // only respond to player 1's device in menus
    if (device_id != input_get_player_device(1)) return;
    
-   menu_handle_input(event, device_id);
+   menu_handle_input(event);
 }
 
 void main_menu_handle_scene_change(SceneType new_scene) {
@@ -516,6 +518,7 @@ void character_select_scene_render(void) {
 }
 
 void character_select_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
    if (!scene_manager.session.confirmed_devices) {
       device_select_handle_input(event, device_id);
    }
@@ -538,6 +541,7 @@ void device_select_init(void) {
 }
 
 void device_select_update(float delta_time) {
+   (void)delta_time;
    // bg_pinwheel.rotation++ (changes every ~1 second)
    // figure out how to detect change in assigned devices best
    // on change, update the position coordinates for drawing [n]
@@ -606,6 +610,7 @@ void character_select_init(void) {
 }
 
 void character_select_update(float delta_time) {
+   (void)delta_time;
    // detect update somehow, change what character is shown on p1 and p2 sides
 }
 
@@ -614,7 +619,8 @@ void character_select_render(void) {
 }
 
 void character_select_handle_input(InputEvent event, int device_id) {
-   menu_handle_input(event, device_id); // i prommy
+   (void)device_id;
+   menu_handle_input(event); // i prommy
 }
 
 void character_select_handle_scene_change(SceneType new_scene) {
@@ -668,6 +674,7 @@ void settings_scene_init(void) {
 }
 
 void settings_scene_update(float delta_time) {
+   (void)delta_time;
    // yeah yeah
 }
 
@@ -676,10 +683,11 @@ void settings_scene_render(void) {
 }
 
 void settings_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
    // only accepts p1 input as this is accessed from the main menu
    if (device_id != input_get_player_device(1)) return;
    
-   menu_handle_input(event, device_id);
+   menu_handle_input(event);
 }
 
 void settings_handle_scene_change(SceneType new_scene) {
@@ -698,6 +706,7 @@ void gameplay_scene_init(void) {
 }
 
 void gameplay_scene_update(float delta_time) {
+   (void)delta_time;
    // soon (tm)
 }
 
@@ -706,6 +715,8 @@ void gameplay_scene_render(void) {
 }
 
 void gameplay_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
+   (void)device_id;
    switch (event) {
    case INPUT_A:
       // !!! renderer_draw_string(8, 15, "...this is where the game will go..............................", 22, 4);

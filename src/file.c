@@ -273,6 +273,8 @@ Font* file_get_font(FontArray* font_array, FontType type) { // TODO: redo this
 
 Sprite* file_get_sprite(SpriteArray* sprite_array, const char* sprite_name) {
    // TODO: finish this pls
+   (void)sprite_array;
+   (void)sprite_name;
    return NULL;
 }
 
@@ -375,6 +377,8 @@ static int parse_sheet_filename(const char* fname, char* type, char* name, int* 
 }
 
 static void verify_image_colors(ImageData* image_data) {
+   // TODO: finish this pls
+   (void)image_data;
    // load ImageData, make sure all colors match palette
    // if not, warn and change colors to closest matching in image_data
    // later we can call modify_image_colors() to change the actual file
