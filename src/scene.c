@@ -222,91 +222,116 @@ int scene_get_stack_depth(void) {
 // TITLE SCENE
 // ============================================================================
 LayerHandle layer_bg, layer_test, layer_sized;
+int dimx = 0, dimy = 0;
+SDL_Rect moving_box = {0, 0, 100, 100};
+bool x_forward = true, y_forward = true;
 void title_scene_init(void) {
    layer_bg = renderer_create_layer(true);
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_opacity(layer_sized, 64);
    renderer_set_size(layer_sized, 2);
-   renderer_set_size(layer_test, 2);
 }
 
 void title_scene_update(float delta_time) {
    (void)delta_time;
-   // no need for continuous updates rn
+   
+   renderer_get_game_dimensions(&dimx, &dimy);
+   
+   // move amt pixels once per frame
+   int amt = 10;
+   if (x_forward) {
+      if (moving_box.x + moving_box.w < dimx) moving_box.x += amt;
+      else { moving_box.x -= amt; x_forward = false; }
+   } else {
+      if (moving_box.x >= 0) moving_box.x -= amt;
+      else { moving_box.x += amt; x_forward = true; }
+   }
+   if (y_forward) {
+      if (moving_box.y + moving_box.h < dimy) moving_box.y += amt;
+      else { moving_box.y -= amt; y_forward = false; }
+   } else {
+      if (moving_box.y >= 0) moving_box.y -= amt;
+      else { moving_box.y += amt; y_forward = true; }
+   }
 }
 
 void title_scene_render(void) {
    renderer_clear();
-   int dimx = 0;
-   int dimy = 0;
-   renderer_get_game_dimensions(&dimx, &dimy);
-   SDL_Rect bg = {0, 0, dimx, dimy};
-   renderer_draw_rect(layer_bg, &bg, 1);
    
-   SDL_Rect border1 = {0, 0, 640, 1};
-   SDL_Rect border2 = {0, 0, 1, 480};
-   SDL_Rect border3 = {0, 479, 640, 1};
-   SDL_Rect border4 = {639, 0, 1, 480};
+   renderer_draw_rect(layer_test, moving_box, 15);
+   
+   { // draw bg & borders
+      SDL_Rect bg = {0, 0, dimx, dimy};
+      renderer_draw_rect(layer_bg, bg, 1);
       
-   renderer_draw_rect(layer_test, &border1, 9);
-   renderer_draw_rect(layer_test, &border2, 9);
-   renderer_draw_rect(layer_test, &border3, 9);
-   renderer_draw_rect(layer_test, &border4, 9);
-   
-   {
-   renderer_draw_pixel(layer_test, 1, 1, 17);
-   renderer_draw_pixel(layer_test, 1, 3, 17);
-   renderer_draw_pixel(layer_test, 1, 5, 17);
-   renderer_draw_pixel(layer_test, 1, 7, 17);
-   renderer_draw_pixel(layer_test, 1, 9, 17);
-   renderer_draw_pixel(layer_test, 2, 2, 16);
-   renderer_draw_pixel(layer_test, 2, 4, 16);
-   renderer_draw_pixel(layer_test, 2, 6, 16);
-   renderer_draw_pixel(layer_test, 2, 8, 16);
-   renderer_draw_pixel(layer_test, 3, 1, 15);
-   renderer_draw_pixel(layer_test, 3, 3, 15);
-   renderer_draw_pixel(layer_test, 3, 5, 15);
-   renderer_draw_pixel(layer_test, 3, 7, 15);
-   renderer_draw_pixel(layer_test, 4, 2, 15);
-   renderer_draw_pixel(layer_test, 4, 4, 15);
-   renderer_draw_pixel(layer_test, 4, 6, 15);
-   renderer_draw_pixel(layer_test, 5, 1, 14);
-   renderer_draw_pixel(layer_test, 5, 3, 14);
-   renderer_draw_pixel(layer_test, 5, 5, 14);
-   renderer_draw_pixel(layer_test, 6, 2, 14);
-   renderer_draw_pixel(layer_test, 6, 4, 14);
-   renderer_draw_pixel(layer_test, 7, 3, 0);
-   renderer_draw_pixel(layer_test, 7, 1, 0);
-   renderer_draw_pixel(layer_test, 8, 2, 0);
-   renderer_draw_pixel(layer_test, 9, 1, 0);
+      SDL_Rect border1 = {0, 0, 640, 1};
+      SDL_Rect border2 = {0, 0, 1, 480};
+      SDL_Rect border3 = {0, 479, 640, 1};
+      SDL_Rect border4 = {639, 0, 1, 480};
+         
+      renderer_draw_rect(layer_test, border1, 9);
+      renderer_draw_rect(layer_test, border2, 9);
+      renderer_draw_rect(layer_test, border3, 9);
+      renderer_draw_rect(layer_test, border4, 9);
    }
-   FontType font = FONT_ACER_8_8;
-   FontType font2 = FONT_COMPIS_8_16;
-   
-   const char* line1 = "! HEY EVERY    IT";
-   const char* line2 = "u hh is me :) hehe";
-   const char* line3 = "* H-hello...?";
-   const char* line4 = "* ...";
-   const char* line5 = "* Where am I...? I'm scared... Please...";
-   const char* line6 = "  I don't want to be a test string...";
-   SDL_Rect line1rect = {20, 207, 136, 9};
-   SDL_Rect line2rect = {20, 217, 144, 9};
-   renderer_draw_rect(layer_test, &line1rect, 14);
-   renderer_draw_rect(layer_test, &line2rect, 17);
-   renderer_draw_string(layer_test, font, line1, 20, 208, 4);
-   renderer_draw_string(layer_test, font, line2, 20, 218, 23);
-   
-   renderer_draw_string(layer_test, font2, line3, 190, 50, 13);
-   renderer_draw_string(layer_test, font2, line4, 190, 80, 13);
-   renderer_draw_string(layer_test, font2, line5, 190, 110, 13);
-   renderer_draw_string(layer_test, font2, line6, 190, 123, 13);
-   
-   renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
-   renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
 
-   renderer_draw_string(layer_sized, font, "This is the title screen.", 10, 30, 4);
-   renderer_draw_string(layer_sized, font, "   Press [j] to start.", 10, 50, 4);
+   { // draw pixels in the corner
+      renderer_draw_pixel(layer_test, 1, 1, 17);
+      renderer_draw_pixel(layer_test, 1, 3, 17);
+      renderer_draw_pixel(layer_test, 1, 5, 17);
+      renderer_draw_pixel(layer_test, 1, 7, 17);
+      renderer_draw_pixel(layer_test, 1, 9, 17);
+      renderer_draw_pixel(layer_test, 2, 2, 16);
+      renderer_draw_pixel(layer_test, 2, 4, 16);
+      renderer_draw_pixel(layer_test, 2, 6, 16);
+      renderer_draw_pixel(layer_test, 2, 8, 16);
+      renderer_draw_pixel(layer_test, 3, 1, 15);
+      renderer_draw_pixel(layer_test, 3, 3, 15);
+      renderer_draw_pixel(layer_test, 3, 5, 15);
+      renderer_draw_pixel(layer_test, 3, 7, 15);
+      renderer_draw_pixel(layer_test, 4, 2, 15);
+      renderer_draw_pixel(layer_test, 4, 4, 15);
+      renderer_draw_pixel(layer_test, 4, 6, 15);
+      renderer_draw_pixel(layer_test, 5, 1, 14);
+      renderer_draw_pixel(layer_test, 5, 3, 14);
+      renderer_draw_pixel(layer_test, 5, 5, 14);
+      renderer_draw_pixel(layer_test, 6, 2, 14);
+      renderer_draw_pixel(layer_test, 6, 4, 14);
+      renderer_draw_pixel(layer_test, 7, 3, 0);
+      renderer_draw_pixel(layer_test, 7, 1, 0);
+      renderer_draw_pixel(layer_test, 8, 2, 0);
+      renderer_draw_pixel(layer_test, 9, 1, 0);
+   }
+   
+   { // misc testing
+      FontType font = FONT_ACER_8_8;
+      FontType font2 = FONT_COMPIS_8_16;
+      
+      const char* line1 = "! HEY EVERY    IT";
+      const char* line2 = "u hh is me :) hehe";
+      const char* line3 = "* H-hello...?";
+      const char* line4 = "* ...";
+      const char* line5 = "* Where am I...? I'm scared... Please...";
+      const char* line6 = "  I don't want to be a test string...";
+      SDL_Rect line1rect = {20, 207, 136, 9};
+      SDL_Rect line2rect = {20, 217, 144, 9};
+      renderer_draw_rect(layer_test, line1rect, 14);
+      renderer_draw_rect(layer_test, line2rect, 17);
+      renderer_draw_string(layer_test, font, line1, 20, 208, 4);
+      renderer_draw_string(layer_test, font, line2, 20, 218, 23);
+      
+      renderer_draw_string(layer_test, font2, line3, 190, 50, 13);
+      renderer_draw_string(layer_test, font2, line4, 190, 80, 13);
+      renderer_draw_string(layer_test, font2, line5, 190, 110, 13);
+      renderer_draw_string(layer_test, font2, line6, 190, 123, 13);
+      
+      renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
+      renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
+   
+      renderer_draw_string(layer_sized, font, "This is the title screen.", 10, 30, 4);
+      renderer_draw_string(layer_sized, font, "   Press [j] to start.", 10, 50, 4);
+   }
 }
 
 extern void game_shutdown(void);
