@@ -508,7 +508,7 @@ void renderer_draw_string(LayerHandle handle, FontType font_type, const char* st
    if (!layer || !layer->surface || !font || !str || color_index >= PALETTE_SIZE) return;
    
    x -= (font->tile_w * layer->size); // uhh to line it up cause i add again
-   for (int i = 0; i < strlen(str); i++) {
+   for (int i = 0; i < (int)strlen(str); i++) {
       if (str[i] == ' ') {
          x += (font->tile_w * layer->size);
          continue;
