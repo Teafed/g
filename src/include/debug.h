@@ -22,29 +22,32 @@ void    d__err(const char* func, const char* file, int line, const char* fmt, ..
 bool    d__dne(void* ptr, const char* name, const char* func, const char* file, int line);
 #define d_dne(ptr) d__dne((void*)(ptr), #ptr, __func__, __FILE__, __LINE__)
 
-// TODO: supprt for uint8_t
 static inline void d__var_int(int x, const char* name) {
-    printf("%s = %d\n", name, x);
+   printf("%s = %d\n", name, x);
+}
+static inline void d__var_uint(unsigned int x, const char* name) {
+   printf("%s = %u\n", name, x);
 }
 static inline void d__var_float(double x, const char* name) {
-    printf("%s = %f\n", name, x);
+   printf("%s = %f\n", name, x);
 }
 static inline void d__var_char(char x, const char* name) {
-    printf("%s = \"%c\"\n", name, x);
+   printf("%s = \"%c\"\n", name, x);
 }
 static inline void d__var_str(const char* x, const char* name) {
-    printf("%s = \"%s\"\n", name, x);
+   printf("%s = \"%s\"\n", name, x);
 }
 static inline void d__var_ptr(void* x, const char* name) {
-    printf("%s = %p\n", name, x);
+   printf("%s = %p\n", name, x);
 }
 #define d_var(x) _Generic((x), \
-    int: d__var_int, \
-    float: d__var_float, \
-    double: d__var_float, \
-    char: d__var_char, \
-    const char*: d__var_str, \
-    default: d__var_ptr \
+   int: d__var_int, \
+   unsigned int: d__var_uint, \
+   float: d__var_float, \
+   double: d__var_float, \
+   char: d__var_char, \
+   const char*: d__var_str, \
+   default: d__var_ptr \
 )(x, #x)
 
 // RENDERER
