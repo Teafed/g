@@ -133,13 +133,13 @@ void scene_pop(void) {
             break;
          case SCENE_MAIN_MENU:
             // this might be broken
-            menu_set_cursor_position(main_menu, entry->menu_position);
+            menu_set_cursor_position(entry->menu_position);
             break;
          case SCENE_CHARACTER_SELECT:
-            menu_set_cursor_position(character_menu, entry->menu_position);
+            menu_set_cursor_position(entry->menu_position);
             break;
          case SCENE_SETTINGS:
-            menu_set_cursor_position(settings_menu, entry->menu_position);
+            menu_set_cursor_position(entry->menu_position);
             break;
          default:
             break;
