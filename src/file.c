@@ -334,7 +334,7 @@ static ImageData* load_bitmap(const char* fname) {
    for (uint32_t i = dib_header.height; i > 0; i--) {
       fread(&pixel_buffer, 1, bmp_pitch, image_file);
       uint8_t* row_start = pixel_data + (i - 1) * img_data_pitch;
-      for (uint32_t j = 0; j < dib_header.width; j++) {
+      for (uint32_t j = 0; j < (uint32_t)dib_header.width; j++) {
          uint32_t buffer_offset = j * 3;
          uint32_t data_offset = j * 4;
          
