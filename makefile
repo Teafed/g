@@ -20,7 +20,7 @@ directories:
 	mkdir -p $(OBJ_DIR) $(BIN_DIR)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	mkdir -p $(dir $@) # match src/ subdirectory structure
+	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(OBJS)
