@@ -117,6 +117,7 @@ void game_render(void) {
 void game_shutdown(void) {
    d_log("shutting down the game......");
    g_game.state = GAME_QUIT;
+   scene_destroy();
    input_shutdown();
    renderer_cleanup();
    SDL_Quit();
