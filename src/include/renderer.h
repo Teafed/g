@@ -8,6 +8,7 @@
 typedef uint32_t LayerHandle;
 #define INVALID_LAYER 0
 #define PALETTE_SIZE 36
+#define PALETTE_TRANSPARENT 35
 
 #define GAME_WIDTH_VGA 640
 #define GAME_HEIGHT_VGA 480
@@ -32,16 +33,24 @@ typedef enum {
 
 typedef struct {
    LayerHandle handle;
-   uint8_t size;
    bool can_draw_outside_viewport;
    bool visible;
    uint8_t opacity;     // 255 = fully opaque
+   uint8_t size;
+   // size affects the size of each pixel drawn:
+   //    x,y placement is still same as game_coords
+   //    with drawing shapes, pixels align to the nearest size multiple
+   //    with drawing from sheets, the size is scaled
+   //    i'm imagining only using like 1x1, 2x2, 4x4, 8x8, etc but keeping options open as well
    SDL_Surface* surface;
 
-   // TODO: figure out scale: int, not float. is scale the best term?
-   //       still use game_coords but if e.g. scale is 2x, then coords will snap to even numbers
    // TODO: other kind of float scaling based on perspective
+   // TODO: group layers - layers can be part of multiple groups, and groups can have properties that affect all
 } Layer;
+
+// typedef struct {
+   // 
+// } LayerGroup;
 
 #include "file.h"
 typedef struct {
