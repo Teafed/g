@@ -20,43 +20,46 @@ static Menu* character_menu = NULL;
 static Menu* settings_menu = NULL;
 
 void scene_init(void) {
+   // TODO: menu cleanup in .destroy functions
+   //       and make sure .destroy is called on scene change
    scene_reset_session();
    menu_system_init();
 
    // function pointers
+   // make sure init, update, render, handle_input, destroy are never left uninitialized
    // setup title scene
    scene_manager.scenes[SCENE_TITLE].init = title_scene_init;
+   scene_manager.scenes[SCENE_TITLE].handle_input = title_scene_handle_input;
    scene_manager.scenes[SCENE_TITLE].update = title_scene_update;
    scene_manager.scenes[SCENE_TITLE].render = title_scene_render;
-   scene_manager.scenes[SCENE_TITLE].handle_input = title_scene_handle_input;
    scene_manager.scenes[SCENE_TITLE].destroy = NULL;
    
    // setup main menu scene
    scene_manager.scenes[SCENE_MAIN_MENU].init = main_menu_scene_init;
+   scene_manager.scenes[SCENE_MAIN_MENU].handle_input = main_menu_scene_handle_input;
    scene_manager.scenes[SCENE_MAIN_MENU].update = main_menu_scene_update;
    scene_manager.scenes[SCENE_MAIN_MENU].render = main_menu_scene_render;
-   scene_manager.scenes[SCENE_MAIN_MENU].handle_input = main_menu_scene_handle_input;
    scene_manager.scenes[SCENE_MAIN_MENU].destroy = NULL;
    
    // setup character select scene
    scene_manager.scenes[SCENE_CHARACTER_SELECT].init = character_select_scene_init;
+   scene_manager.scenes[SCENE_CHARACTER_SELECT].handle_input = character_select_scene_handle_input;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].update = character_select_scene_update;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].render = character_select_scene_render;
-   scene_manager.scenes[SCENE_CHARACTER_SELECT].handle_input = character_select_scene_handle_input;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].destroy = NULL;
 
    // setup gameplay scene
    scene_manager.scenes[SCENE_GAMEPLAY].init = settings_scene_init;
+   scene_manager.scenes[SCENE_GAMEPLAY].handle_input = settings_scene_handle_input;
    scene_manager.scenes[SCENE_GAMEPLAY].update = settings_scene_update;
    scene_manager.scenes[SCENE_GAMEPLAY].render = settings_scene_render;
-   scene_manager.scenes[SCENE_GAMEPLAY].handle_input = settings_scene_handle_input;
    scene_manager.scenes[SCENE_GAMEPLAY].destroy = NULL;
    
    // setup settings scene
    scene_manager.scenes[SCENE_SETTINGS].init = settings_scene_init;
+   scene_manager.scenes[SCENE_SETTINGS].handle_input = settings_scene_handle_input;
    scene_manager.scenes[SCENE_SETTINGS].update = settings_scene_update;
    scene_manager.scenes[SCENE_SETTINGS].render = settings_scene_render;
-   scene_manager.scenes[SCENE_SETTINGS].handle_input = settings_scene_handle_input;
    scene_manager.scenes[SCENE_SETTINGS].destroy = NULL;
    
    // initialize first scene - start with title screen
@@ -67,14 +70,25 @@ void scene_init(void) {
    }
 }
 
-void scene_reset_session(void) {
-   scene_manager.session.mode = GAME_MODE_MAX; // invalid
-   scene_manager.session.selected_characters[0] = -1;
-   scene_manager.session.selected_characters[1] = -1;
-   scene_manager.session.cpu_players[0] = false;
-   scene_manager.session.cpu_players[1] = false;
-   scene_manager.session.selected_stage = -1;
-   scene_manager.session.valid = false;
+void scene_handle_input(InputEvent event, InputState state, int device_id) {
+   if (scene_manager.scenes[scene_manager.current_scene].handle_input) {
+      scene_manager.scenes[scene_manager.current_scene].handle_input(event, state, device_id);
+   }
+}
+
+void scene_update(float delta_time) {
+   scene_manager.scenes[scene_manager.current_scene].update(delta_time);
+}
+
+void scene_render(void) {
+   if (scene_manager.scenes[scene_manager.current_scene].render) {
+      scene_manager.scenes[scene_manager.current_scene].render();
+   }
+}
+
+void scene_destroy(void) {
+   // TODO: add this just as above
+   // menu_system_cleanup(); // this should go in each of them, also call scene_destroy for any created
 }
 
 // scenes are only added to the stack once the scene ends
@@ -89,18 +103,18 @@ void scene_push(SceneType new_scene) {
       
       // save current scene's UI state & player assignment
       switch (scene_manager.current_scene) {
-         case SCENE_MAIN_MENU:
-            entry->menu_position = menu_get_cursor_position();
-            break;
-         case SCENE_CHARACTER_SELECT:
-            entry->menu_position = menu_get_cursor_position();
-            break;
-         case SCENE_SETTINGS:
-            entry->menu_position = menu_get_cursor_position();
-            break;
-         default:
-            entry->menu_position = 0;
-            break;
+      case SCENE_MAIN_MENU:
+         entry->menu_position = menu_get_cursor_position();
+         break;
+      case SCENE_CHARACTER_SELECT:
+         entry->menu_position = menu_get_cursor_position();
+         break;
+      case SCENE_SETTINGS:
+         entry->menu_position = menu_get_cursor_position();
+         break;
+      default:
+         entry->menu_position = 0;
+         break;
       }
       scene_manager.stack_depth++;
    }
@@ -177,26 +191,14 @@ void scene_start_game_session(GameModeType mode) {
    scene_manager.session.valid = true;
 }
 
-void scene_update(float delta_time) {
-   // make sure init, update, render, handle_input, destroy are never left uninitialized in scene_init
-
-   scene_manager.scenes[scene_manager.current_scene].update(delta_time);
-}
-
-void scene_render(void) {
-   if (scene_manager.scenes[scene_manager.current_scene].render) {
-      scene_manager.scenes[scene_manager.current_scene].render();
-   }
-}
-
-void scene_handle_input(InputEvent event, InputState state, int device_id) {
-   if (scene_manager.scenes[scene_manager.current_scene].handle_input) {
-      scene_manager.scenes[scene_manager.current_scene].handle_input(event, state, device_id);
-   }
-}
-
-void scene_destroy(void) {
-   menu_destroy();
+void scene_reset_session(void) {
+   scene_manager.session.mode = GAME_MODE_MAX; // invalid
+   scene_manager.session.selected_characters[0] = -1;
+   scene_manager.session.selected_characters[1] = -1;
+   scene_manager.session.cpu_players[0] = false;
+   scene_manager.session.cpu_players[1] = false;
+   scene_manager.session.selected_stage = -1;
+   scene_manager.session.valid = false;
 }
 
 // UTILITY
@@ -217,10 +219,10 @@ int scene_get_stack_depth(void) {
    return scene_manager.stack_depth;
 }
 
-
 // ============================================================================
 // TITLE SCENE
 // ============================================================================
+
 LayerHandle layer_bg, layer_test, layer_sized;
 int dimx = 0, dimy = 0;
 SDL_Rect moving_box = {0, 0, 100, 100};
@@ -389,6 +391,7 @@ void main_menu_scene_update(float delta_time) {
 
 void main_menu_scene_render(void) {
    // TODO: transfer rendering stuff over here
+   menu_update_display();
 }
 
 void main_menu_scene_handle_input(InputEvent event, InputState state, int device_id) {
