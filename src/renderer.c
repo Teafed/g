@@ -40,7 +40,7 @@ bool renderer_init(float scale_factor) {
    g_renderer.last_windowed_height = g_renderer.screen.h;
    
    g_renderer.clear_color_index = 4; // mono-black
-   g_renderer.transparent_color_index = 35;
+   g_renderer.transparent_color_index = PALETTE_TRANSPARENT;
    
    g_renderer.window = SDL_CreateWindow(
       "teafeds cool game",
