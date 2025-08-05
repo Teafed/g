@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <SDL2/SDL.h>
 
+
+#define MAX_PLAYERS 2
 #define MAX_INPUT_DEVICES 4
 #define MAX_KEYS_PER_DEVICE 32
 #define MAX_DEVICE_NAME_LENGTH 64
@@ -40,7 +42,7 @@ typedef enum {
    INPUT_MAX
 } InputEvent;
 
-// game context - how inputs are handled
+// TODO: remove this & related functions
 typedef enum {
    CONTEXT_TITLE,
    CONTEXT_MENU,
