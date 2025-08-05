@@ -5,7 +5,6 @@
 
 #define MAX_SCENE_STACK_DEPTH 8
 
-
 typedef enum {
    SCENE_TITLE,
    SCENE_MAIN_MENU,
@@ -32,19 +31,19 @@ typedef struct {
 } Scene;
 
 typedef struct {
-   GameModeType mode;            // ARCADE, TRAINING, VERSUS, etc.
-   bool valid;                   // false when a session should be reset
-   int selected_characters[2];   // -1 if not selected
-   bool cpu_players[2];          // true if CPU
-   bool confirmed_devices;       // false while on device select screen
-   int selected_stage;           // int for now, -1 if not selected
+   GameModeType mode;                     // ARCADE, TRAINING, VERSUS, etc.
+   bool valid;                            // false when a session should be reset
+   int selected_characters[MAX_PLAYERS];  // -1 if not selected
+   bool cpu_players[MAX_PLAYERS];         // true if CPU
+   bool confirmed_devices;                // false while on device select screen
+   int selected_stage;                    // int for now, -1 if not selected
 } GameSession;
 
 // stores info about previous scenes
 typedef struct {
    SceneType type;
-   int menu_position;           // just UI state to restore
-   int player_devices[2];       // -1 if CPU/not assigned
+   int menu_position;                     // just UI state to restore
+   int player_devices[MAX_PLAYERS];       // -1 if CPU/not assigned
 } SceneStackEntry;
 
 // scene management with stack
@@ -53,20 +52,23 @@ typedef struct {
    int stack_depth;
    SceneType current_scene;
    Scene scenes[SCENE_MAX];
-   GameSession session;         // global game state
+   GameSession session;                   // global game state
 } SceneManager;
 
-// scene management
+// core functions
 void scene_init(void);
-void scene_reset_session(void);
+void scene_handle_input(InputEvent event, InputState state, int device_id);
+void scene_update(float delta_time);
+void scene_render(void);
+void scene_destroy(void);
+
+// scene management
 void scene_push(SceneType new_scene);
 void scene_pop(void);
 void scene_change_to(SceneType type);
+
 void scene_start_game_session(GameModeType mode);
-void scene_update(float delta_time);
-void scene_render(void);
-void scene_handle_input(InputEvent event, InputState state, int device_id);
-void scene_destroy(void);
+void scene_reset_session(void);
 
 // utility functions
 GameSession* scene_get_session(void);
@@ -75,37 +77,38 @@ SceneStackEntry* scene_get_scene_entry_at_index(int index);
 int scene_get_stack_depth(void);
 
 // note: init() sets up scene but doesn't draw
+//       handle_input() is called before update()
 //       render() always draws scene state
 //       update() modifies what render() will draw
 
 // TITLE
 void title_scene_init(void);
+void title_scene_handle_input(InputEvent event, InputState state, int device_id);
 void title_scene_update(float delta_time);
 void title_scene_render(void);
-void title_scene_handle_input(InputEvent event, InputState state, int device_id);
 
 // MAIN MENU
 void main_menu_scene_init(void);
+void main_menu_scene_handle_input(InputEvent event, InputState state, int device_id);
 void main_menu_scene_update(float delta_time);
 void main_menu_scene_render(void);
-void main_menu_scene_handle_input(InputEvent event, InputState state, int device_id);
 
 void main_menu_handle_scene_change(SceneType new_scene);
 void main_menu_handle_game_setup(GameModeType mode);
 
 // CHARACTER SELECT
 void character_select_scene_init(void);
+void character_select_scene_handle_input(InputEvent event, InputState state, int device_id);
 void character_select_scene_update(float delta_time);
 void character_select_scene_render(void);
-void character_select_scene_handle_input(InputEvent event, InputState state, int device_id);
 
 void character_select_handle_scene_change(SceneType new_scene);
 
 // SETTINGS
 void settings_scene_init(void);
+void settings_scene_handle_input(InputEvent event, InputState state, int device_id);
 void settings_scene_update(float delta_time);
 void settings_scene_render(void);
-void settings_scene_handle_input(InputEvent event, InputState state, int device_id);
 
 void settings_handle_scene_change(SceneType new_scene);
 
