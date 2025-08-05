@@ -250,6 +250,7 @@ void input_add_mapping(int raw_key, InputEvent event, int device_id) {
 
 // context system
 extern void scene_handle_input(InputEvent event, InputState state, int device_id);
+extern void menu_handle_input(InputEvent event, InputState state, int device_id);
 void input_setup_handlers(void) {
    // setup function to register all handlers
    input_set_context_handler(CONTEXT_TITLE, scene_handle_input);
@@ -397,6 +398,12 @@ void input_set_player_device(int player, int device_id) {
 
 int input_get_player_device(int player) {
    return (player == 1) ? g_input.player1_device : g_input.player2_device;
+}
+
+int input_get_player(int device_id) {
+   if (g_input.player1_device == device_id) return 1;
+   else if (g_input.player2_device == device_id) return 2;
+   return 0;
 }
 
 

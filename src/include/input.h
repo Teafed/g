@@ -42,7 +42,6 @@ typedef enum {
    INPUT_MAX
 } InputEvent;
 
-// TODO: remove this & related functions
 typedef enum {
    CONTEXT_TITLE,
    CONTEXT_MENU,
@@ -155,5 +154,6 @@ int input_find_device_by_guid(SDL_JoystickGUID guid);
 bool input_is_device_connected(int device_id);
 void input_set_player_device(int player, int device_id);
 int input_get_player_device(int player);
+int input_get_player(int device_id); // returns 0 if unassigned
 
 #endif
