@@ -27,7 +27,6 @@ typedef struct {
    void (*update)(float delta_time);
    void (*render)(void);
    void (*destroy)(void);
-   void (*handle_input)(InputEvent event, InputState state, int device_id);
 } Scene;
 
 typedef struct {
@@ -82,14 +81,17 @@ int scene_get_stack_depth(void);
 
 // TITLE
 void title_scene_init(void);
-void title_scene_handle_input(InputEvent event, InputState state, int device_id);
 void title_scene_update(float delta_time);
 void title_scene_render(void);
+void title_scene_destroy(void);
+
+void title_scene_handle_input(InputEvent event, InputState state, int device_id);
 
 // MAIN MENU
 void main_menu_scene_init(void);
 void main_menu_scene_update(float delta_time);
 void main_menu_scene_render(void);
+void main_menu_scene_destroy(void);
 
 void main_menu_handle_scene_change(SceneType new_scene);
 void main_menu_handle_game_setup(GameModeType mode);
@@ -98,14 +100,23 @@ void main_menu_handle_game_setup(GameModeType mode);
 void character_select_scene_init(void);
 void character_select_scene_update(float delta_time);
 void character_select_scene_render(void);
+void character_select_scene_destroy(void);
 
+void device_select_handle_input(InputEvent event, InputState state, int device_id);
 void character_select_handle_scene_change(SceneType new_scene);
 
 // SETTINGS
 void settings_scene_init(void);
 void settings_scene_update(float delta_time);
 void settings_scene_render(void);
+void settings_scene_destroy(void);
 
 void settings_handle_scene_change(SceneType new_scene);
+
+// GAMEPLAY
+void gameplay_scene_init(void);
+void gameplay_scene_update(float delta_time);
+void gameplay_scene_render(void);
+void gameplay_scene_destroy(void);
 
 #endif
