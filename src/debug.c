@@ -120,7 +120,7 @@ const char* d_name_input_event(InputEvent e) {
 
 const char* d_name_game_context(GameContext context) {
    static const char* names[] = {
-      "TITLE", "MENU", "PLAY", "DBOX"
+      "TITLE", "MENU", "DEVICE_SELECT", "PLAY", "DBOX"
    };
    return (context < CONTEXT_MAX) ? names[context] : "UNKNOWN!";
 }
@@ -223,11 +223,11 @@ void d_print_scene_stack(void) {
 const char* d_name_menu_action(MenuAction action) {
    static const char* names[] = {
       "MENU_ACTION_NONE",
-      "MENU_ACTION_SELECT",
-      "MENU_ACTION_BACK",
       "MENU_ACTION_SUBMENU",
+      "MENU_ACTION_GAME_SETUP",
       "MENU_ACTION_SCENE_CHANGE",
-      "MENU_ACTION_SETTING_CHANGE",
+      "MENU_ACTION_BACK",
+      "MENU_ACTION_QUIT",
       "MENU_ACTION_MAX"
    };
    return (action < MENU_ACTION_MAX) ? names[action] : "UNKNOWN!";

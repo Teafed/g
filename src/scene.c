@@ -20,64 +20,54 @@ static Menu* character_menu = NULL;
 static Menu* settings_menu = NULL;
 
 void scene_init(void) {
-   // TODO: menu cleanup in .destroy functions
-   //       and make sure .destroy is called on scene change
    scene_reset_session();
    menu_system_init();
 
    // function pointers
-   // make sure init, update, render, handle_input, destroy are never left uninitialized
+   // make sure init, update, render, destroy are never left uninitialized
    // setup title scene
    scene_manager.scenes[SCENE_TITLE].init = title_scene_init;
-   scene_manager.scenes[SCENE_TITLE].handle_input = title_scene_handle_input;
    scene_manager.scenes[SCENE_TITLE].update = title_scene_update;
    scene_manager.scenes[SCENE_TITLE].render = title_scene_render;
-   scene_manager.scenes[SCENE_TITLE].destroy = NULL;
+   scene_manager.scenes[SCENE_TITLE].destroy = title_scene_destroy;
    
    // setup main menu scene
    scene_manager.scenes[SCENE_MAIN_MENU].init = main_menu_scene_init;
-   scene_manager.scenes[SCENE_MAIN_MENU].handle_input = main_menu_scene_handle_input;
    scene_manager.scenes[SCENE_MAIN_MENU].update = main_menu_scene_update;
    scene_manager.scenes[SCENE_MAIN_MENU].render = main_menu_scene_render;
-   scene_manager.scenes[SCENE_MAIN_MENU].destroy = NULL;
+   scene_manager.scenes[SCENE_MAIN_MENU].destroy = main_menu_scene_destroy;
    
    // setup character select scene
    scene_manager.scenes[SCENE_CHARACTER_SELECT].init = character_select_scene_init;
-   scene_manager.scenes[SCENE_CHARACTER_SELECT].handle_input = character_select_scene_handle_input;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].update = character_select_scene_update;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].render = character_select_scene_render;
-   scene_manager.scenes[SCENE_CHARACTER_SELECT].destroy = NULL;
+   scene_manager.scenes[SCENE_CHARACTER_SELECT].destroy = character_select_scene_destroy;
 
    // setup gameplay scene
-   scene_manager.scenes[SCENE_GAMEPLAY].init = settings_scene_init;
-   scene_manager.scenes[SCENE_GAMEPLAY].handle_input = settings_scene_handle_input;
-   scene_manager.scenes[SCENE_GAMEPLAY].update = settings_scene_update;
-   scene_manager.scenes[SCENE_GAMEPLAY].render = settings_scene_render;
-   scene_manager.scenes[SCENE_GAMEPLAY].destroy = NULL;
+   scene_manager.scenes[SCENE_GAMEPLAY].init = gameplay_scene_init;
+   scene_manager.scenes[SCENE_GAMEPLAY].update = gameplay_scene_update;
+   scene_manager.scenes[SCENE_GAMEPLAY].render = gameplay_scene_render;
+   scene_manager.scenes[SCENE_GAMEPLAY].destroy = gameplay_scene_destroy;
    
    // setup settings scene
    scene_manager.scenes[SCENE_SETTINGS].init = settings_scene_init;
-   scene_manager.scenes[SCENE_SETTINGS].handle_input = settings_scene_handle_input;
    scene_manager.scenes[SCENE_SETTINGS].update = settings_scene_update;
    scene_manager.scenes[SCENE_SETTINGS].render = settings_scene_render;
-   scene_manager.scenes[SCENE_SETTINGS].destroy = NULL;
+   scene_manager.scenes[SCENE_SETTINGS].destroy = settings_scene_destroy;
    
    // initialize first scene - start with title screen
    scene_manager.current_scene = SCENE_TITLE;
+   input_set_context(CONTEXT_TITLE); // route input to title_scene_handle_input()
    scene_manager.stack_depth = 0;
    if (scene_manager.scenes[SCENE_TITLE].init) {
       scene_manager.scenes[SCENE_TITLE].init();
    }
 }
 
-void scene_handle_input(InputEvent event, InputState state, int device_id) {
-   if (scene_manager.scenes[scene_manager.current_scene].handle_input) {
-      scene_manager.scenes[scene_manager.current_scene].handle_input(event, state, device_id);
-   }
-}
-
 void scene_update(float delta_time) {
-   scene_manager.scenes[scene_manager.current_scene].update(delta_time);
+   if (scene_manager.scenes[scene_manager.current_scene].update) {
+      scene_manager.scenes[scene_manager.current_scene].update(delta_time);
+   }
 }
 
 void scene_render(void) {
@@ -87,8 +77,10 @@ void scene_render(void) {
 }
 
 void scene_destroy(void) {
-   // TODO: add this just as above
-   // menu_system_cleanup(); // this should go in each of them, also call scene_destroy for any created
+   if (scene_manager.scenes[scene_manager.current_scene].destroy) {
+      scene_manager.scenes[scene_manager.current_scene].destroy();
+   }
+   menu_system_cleanup();
 }
 
 // scenes are only added to the stack once the scene ends
@@ -235,6 +227,25 @@ void title_scene_init(void) {
    renderer_set_size(layer_sized, 2);
 }
 
+extern void game_shutdown(void);
+void title_scene_handle_input(InputEvent event, InputState state, int device_id) {
+   (void)state;
+   if (event == INPUT_START || event == INPUT_A) {
+      // first input detected - assign as player 1
+      if (input_get_player_device(1) == -1) {
+         scene_push(SCENE_MAIN_MENU);
+         input_set_player_device(1, device_id);
+      }
+      else {
+         printf("for some reason player device 1 is already assigned on the main menu... that sohuldn't be\n");
+         // d_print_scene_stack();
+      }
+   }
+   else if (event == INPUT_B || event == INPUT_SELECT) {
+      game_shutdown();
+   }
+}
+
 void title_scene_update(float delta_time) {
    (void)delta_time;
    
@@ -336,23 +347,10 @@ void title_scene_render(void) {
    }
 }
 
-extern void game_shutdown(void);
-void title_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
-   if (event == INPUT_START || event == INPUT_A) {
-      // first input detected - assign as player 1
-      if (input_get_player_device(1) == -1) {
-         scene_push(SCENE_MAIN_MENU);
-         input_set_player_device(1, device_id);
-      }
-      else {
-         printf("for some reason player device 1 is already assigned on the main menu... that sohuldn't be\n");
-         // d_print_scene_stack();
-      }
-   }
-   else if (event == INPUT_B || event == INPUT_SELECT) {
-      game_shutdown();
-   }
+void title_scene_destroy(void) {
+   renderer_destroy_layer(layer_bg);
+   renderer_destroy_layer(layer_test);
+   renderer_destroy_layer(layer_sized);
 }
 
 // ============================================================================
@@ -364,8 +362,6 @@ void main_menu_handle_game_setup(GameModeType mode);
 void main_menu_update_input_display(void);
 
 void main_menu_scene_init(void) {
-   renderer_clear();
-   
    main_menu = menu_create("MAIN MENU", MENU_TYPE_LIST);
    menu_add_option(main_menu, "SOLO", MENU_ACTION_SUBMENU, 1);
    menu_add_option(main_menu, "VERSUS", MENU_ACTION_GAME_SETUP, GAME_MODE_VERSUS);
@@ -381,6 +377,7 @@ void main_menu_scene_init(void) {
    menu_add_option(solo_menu, "STORY", MENU_ACTION_GAME_SETUP, GAME_MODE_STORY);
 
    solo_menu->parent = main_menu;
+   input_set_context(CONTEXT_MENU);
 }
 
 void main_menu_scene_update(float delta_time) {
@@ -394,12 +391,8 @@ void main_menu_scene_render(void) {
    menu_update_display();
 }
 
-void main_menu_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
-   // only respond to player 1's device in menus
-   if (device_id != input_get_player_device(1)) return;
-   
-   menu_handle_input(event);
+void main_menu_scene_destroy(void) {
+   menu_destroy(main_menu); // TODO: make this destroy children as well
 }
 
 void main_menu_handle_scene_change(SceneType new_scene) {
@@ -498,14 +491,13 @@ void main_menu_update_input_display(void) {
 // ============================================================================
 
 void device_select_init(void);
+void device_select_handle_input(InputEvent event, int device_id);
 void device_select_update(float delta_time);
 void device_select_render(void);
-void device_select_handle_input(InputEvent event, int device_id);
 
 void character_select_init(void);
 void character_select_update(float delta_time);
 void character_select_render(void);
-void character_select_handle_input(InputEvent event, int device_id);
 
 void character_select_handle_scene_change(SceneType new_scene);
 
@@ -545,25 +537,8 @@ void character_select_scene_render(void) {
    character_select_render();
 }
 
-void character_select_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
-   if (!scene_manager.session.confirmed_devices) {
-      device_select_handle_input(event, device_id);
-   }
-   else {
-      if (device_id != input_get_player_device(1) || device_id != input_get_player_device(2)) return;
-
-      // if want to return to device select, press B while character is unselected
-      // set scene_manager.session.confirmed_devices to false
-      // but don't reset p1 & p2 back to -1
-
-      // handle character select menu input
-      character_select_handle_input(event, device_id);
-   }
-   
-}
-
 void device_select_init(void) {
+   input_set_context(CONTEXT_DEVICE_SELECT);
    // draw initial device select. the background is a pinwheel (layer 0)
    // layer 1, draw [1] [2] [3] & [4] where they should be according to g_input.devices[i].device_id & input_get_player_device()
 }
@@ -579,7 +554,8 @@ void device_select_render(void) {
    // draw all the parts that have to be updated
 }
 
-void device_select_handle_input(InputEvent event, int device_id) {
+void device_select_handle_input(InputEvent event, InputState state, int device_id) {
+   (void) state;
    bool solo_mode = true;
    if (scene_manager.session.mode == GAME_MODE_VERSUS)
       solo_mode = false;
@@ -624,7 +600,7 @@ void device_select_handle_input(InputEvent event, int device_id) {
    case INPUT_START:
       if (p1 == device_id || p2 == device_id) {
          scene_manager.session.confirmed_devices = true; // confirm devices
-         renderer_clear();
+         character_select_init();
       }
       break;
    default:
@@ -633,7 +609,7 @@ void device_select_handle_input(InputEvent event, int device_id) {
 }
 
 void character_select_init(void) {
-   renderer_clear();   
+   input_set_context(CONTEXT_MENU);
    menu_set_active(character_menu);
 }
 
@@ -644,11 +620,6 @@ void character_select_update(float delta_time) {
 
 void character_select_render(void) {
    menu_update_display(); // i'll make this better
-}
-
-void character_select_handle_input(InputEvent event, int device_id) {
-   (void)device_id;
-   menu_handle_input(event); // i prommy
 }
 
 void character_select_handle_scene_change(SceneType new_scene) {
@@ -710,14 +681,6 @@ void settings_scene_render(void) {
    // as usual
 }
 
-void settings_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
-   // only accepts p1 input as this is accessed from the main menu
-   if (device_id != input_get_player_device(1)) return;
-   
-   menu_handle_input(event);
-}
-
 void settings_handle_scene_change(SceneType new_scene) {
    if (new_scene == SCENE_MAIN_MENU) {
       scene_pop();
@@ -741,23 +704,3 @@ void gameplay_scene_update(float delta_time) {
 void gameplay_scene_render(void) {
    // !!! renderer_draw_string(8, 15, "this is where the game will go..............................", 22, 4);
 }
-
-void gameplay_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
-   (void)device_id;
-   switch (event) {
-   case INPUT_A:
-      // !!! renderer_draw_string(8, 15, "...this is where the game will go..............................", 22, 4);
-      break;
-   case INPUT_B:
-      // !!! renderer_draw_string(8, 15, "this is w...here the game will go..............................", 23, 4);
-      break;
-   case INPUT_START:
-      scene_pop(); // back to char select menu
-      break;
-   default:
-      break;
-   }
-}
-
-

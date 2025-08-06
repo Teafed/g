@@ -253,10 +253,11 @@ extern void scene_handle_input(InputEvent event, InputState state, int device_id
 extern void menu_handle_input(InputEvent event, InputState state, int device_id);
 void input_setup_handlers(void) {
    // setup function to register all handlers
-   input_set_context_handler(CONTEXT_TITLE, scene_handle_input);
-   input_set_context_handler(CONTEXT_MENU, scene_handle_input);
-   input_set_context_handler(CONTEXT_PLAY, scene_handle_input);
-   input_set_context_handler(CONTEXT_DBOX, scene_handle_input);
+   input_set_context_handler(CONTEXT_TITLE, title_scene_handle_input);
+   input_set_context_handler(CONTEXT_MENU, menu_handle_input);
+   input_set_context_handler(CONTEXT_DEVICE_SELECT, device_select_handle_input);
+   input_set_context_handler(CONTEXT_PLAY, NULL); // to be added
+   input_set_context_handler(CONTEXT_DBOX, NULL); // to be added
 }
 
 void input_set_context(GameContext context) {

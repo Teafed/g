@@ -42,9 +42,11 @@ typedef enum {
    INPUT_MAX
 } InputEvent;
 
+// TODO: device select context, set keybind context
 typedef enum {
    CONTEXT_TITLE,
    CONTEXT_MENU,
+   CONTEXT_DEVICE_SELECT,
    CONTEXT_PLAY,
    CONTEXT_DBOX,
    CONTEXT_MAX
