@@ -64,7 +64,7 @@ bool renderer_init(float scale_factor) {
 
    g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
                      0, g_renderer.screen.w, g_renderer.screen.h,
-                     32, SDL_PIXELFORMAT_ARGB8888);
+                     32, SDL_PIXELFORMAT_RGBA8888);
    if (d_dne(g_renderer.composite_surface)) {
       renderer_cleanup();
       return false;
@@ -143,10 +143,11 @@ void renderer_cleanup(void) {
 
 void renderer_clear(void) {
    if (!g_renderer.initialized) return;
+   SDL_FillRect(g_renderer.composite_surface, NULL, palette[g_renderer.clear_color_index]); // clear composite
    renderer_draw_fill(0, g_renderer.clear_color_index);
    for (int i = 1; i < g_renderer.layer_count; i++) {
       Layer* layer = &g_renderer.layers[i];
-      if (!layer->visible) continue;
+      if (!layer) continue;
       renderer_draw_fill(i, g_renderer.transparent_color_index);
    }
 }
