@@ -141,10 +141,14 @@ void renderer_set_clear_color(uint8_t color_index);
 // layer management
 LayerHandle renderer_create_layer(bool can_draw_outside);
 void renderer_destroy_layer(LayerHandle handle);
-void renderer_set_layer_visible(LayerHandle handle, bool visible);
-void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity);
 void renderer_set_layer_draw_outisde(LayerHandle handle, bool can_draw);
-void renderer_set_size(LayerHandle handle, uint8_t size);
+bool renderer_get_layer_draw_outisde(LayerHandle handle);
+void renderer_set_layer_visible(LayerHandle handle, bool visible);
+bool renderer_get_layer_visible(LayerHandle handle);
+void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity);
+uint8_t renderer_get_layer_opacity(LayerHandle handle);
+void renderer_set_layer_size(LayerHandle handle, uint8_t size);
+uint8_t renderer_get_layer_size(LayerHandle handle);
 
 // drawing functions
 void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);

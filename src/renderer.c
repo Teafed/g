@@ -367,11 +367,34 @@ void renderer_destroy_layer(LayerHandle handle) {
    d_logv(2, "destroyed layer %u", handle);
 }
 
+void renderer_set_layer_draw_outisde(LayerHandle handle, bool can_draw) {
+   Layer* layer = find_layer(handle);
+   if (layer && can_draw != layer->can_draw_outside_viewport) {
+      layer->can_draw_outside_viewport = can_draw;
+   }
+}
+
+bool renderer_get_layer_draw_outside(LayerHandle handle) {
+   Layer* layer = find_layer(handle);
+   if (layer) {
+      return layer->can_draw_outside_viewport;
+   }
+   return false;
+}
+
 void renderer_set_layer_visible(LayerHandle handle, bool visible) {
    Layer* layer = find_layer(handle);
    if (layer && visible != layer->visible) {
       layer->visible = visible;
    }
+}
+
+bool renderer_get_layer_visible(LayerHandle handle) {
+   Layer* layer = find_layer(handle);
+   if (layer) {
+      return layer->visible;
+   }
+   return false;
 }
 
 void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity) {
@@ -381,18 +404,27 @@ void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity) {
    }
 }
 
-void renderer_set_layer_draw_outisde(LayerHandle handle, bool can_draw) {
+uint8_t renderer_get_layer_opacity(LayerHandle handle) {
    Layer* layer = find_layer(handle);
-   if (layer && can_draw != layer->can_draw_outside_viewport) {
-      layer->can_draw_outside_viewport = can_draw;
+   if (layer) {
+      return layer->opacity;
    }
+   return 0;
 }
 
-void renderer_set_size(LayerHandle handle, uint8_t size) {
+void renderer_set_layer_size(LayerHandle handle, uint8_t size) {
    Layer* layer = find_layer(handle);
    if (layer && size != layer->size && size != 0) {
       layer->size = size;
    }
+}
+
+uint8_t renderer_get_layer_size(LayerHandle handle) {
+   Layer* layer = find_layer(handle);
+   if (layer) {
+      return layer->visible;
+   }
+   return false;
 }
 
 // DRAWING FUNCTIONS
