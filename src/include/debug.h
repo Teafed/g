@@ -13,7 +13,7 @@
 
 // logging
 void    d_log(const char* fmt, ...);
-void    d_logv(int level, const char* fmt, ...);
+void    d_logv(int level, const char* fmt, ...); // TODO: any way to check if i forgot to include an argument referenced in string?
 
 void    d__err(const char* func, const char* file, int line, const char* fmt, ...);
 #define d_err(...) d__err(__func__, __FILE__, __LINE__, __VA_ARGS__)
@@ -80,6 +80,7 @@ void d_print_scene_stack(void);
 
 // MENU
 #include "menu.h"
+const char* d_name_menu_type(MenuType type);
 const char* d_name_menu_action(MenuAction action);
 
 #endif

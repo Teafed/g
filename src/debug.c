@@ -120,7 +120,12 @@ const char* d_name_input_event(InputEvent e) {
 
 const char* d_name_game_context(GameContext context) {
    static const char* names[] = {
-      "TITLE", "MENU", "DEVICE_SELECT", "PLAY", "DBOX"
+      "CONTEXT_TITLE",
+      "CONTEXT_MENU",
+      "CONTEXT_DEVICE_SELECT",
+      "CONTEXT_PLAY",
+      "CONTEXT_DBOX",
+      "CONTEXT_MAX"
    };
    return (context < CONTEXT_MAX) ? names[context] : "UNKNOWN!";
 }
@@ -220,6 +225,17 @@ void d_print_scene_stack(void) {
 }
 
 // MENU
+const char* d_name_menu_type(MenuType type) {
+   static const char* names[] = {
+      "MENU_TYPE_MAIN",
+      "MENU_TYPE_CHARSEL",
+      "MENU_TYPE_SETTINGS",
+      "MENU_TYPE_PAUSE",
+      "MENU_TYPE_MAX"
+   };
+   return (type < MENU_TYPE_MAX) ? names[type] : "UNKNOWN!";
+}
+
 const char* d_name_menu_action(MenuAction action) {
    static const char* names[] = {
       "MENU_ACTION_NONE",
