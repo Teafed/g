@@ -81,6 +81,7 @@ void d_print_scene_stack(void);
 // MENU
 #include "menu.h"
 const char* d_name_menu_type(MenuType type);
+const char* d_name_option_type(OptionType type);
 const char* d_name_menu_action(MenuAction action);
 
 #endif
