@@ -166,7 +166,7 @@ void renderer_present(void) {
          SDL_FreeSurface(g_renderer.composite_surface);
          g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
                      0, g_renderer.screen.w, g_renderer.screen.h,
-                     32, SDL_PIXELFORMAT_ARGB8888);
+                     32, SDL_PIXELFORMAT_RGBA8888);
          if (d_dne(g_renderer.composite_surface)) {
             return;
          }
