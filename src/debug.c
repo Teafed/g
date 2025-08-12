@@ -235,11 +235,22 @@ const char* d_name_menu_type(MenuType type) {
    };
    return (type < MENU_TYPE_MAX) ? names[type] : "UNKNOWN!";
 }
+const char* d_name_option_type(OptionType type) {
+   static const char* names[] = {
+      "OPTION_TYPE_ACTION",
+      "OPTION_TYPE_TOGGLE",
+      "OPTION_TYPE_CHOICE",
+      "OPTION_TYPE_SLIDER",
+      "OPTION_TYPE_SUBMENU",
+      "OPTION_TYPE_CHARSEL",
+      "OPTION_TYPE_MAX"
+   };
+   return (type < OPTION_TYPE_MAX) ? names[type] : "UNKNOWN!";
+}
 
 const char* d_name_menu_action(MenuAction action) {
    static const char* names[] = {
       "MENU_ACTION_NONE",
-      "MENU_ACTION_SUBMENU",
       "MENU_ACTION_GAME_SETUP",
       "MENU_ACTION_SCENE_CHANGE",
       "MENU_ACTION_BACK",
