@@ -224,7 +224,7 @@ void title_scene_init(void) {
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_opacity(layer_sized, 64);
-   renderer_set_size(layer_sized, 2);
+   renderer_set_layer_size(layer_sized, 2);
 }
 
 extern void game_shutdown(void);
@@ -348,9 +348,9 @@ void title_scene_render(void) {
 }
 
 void title_scene_destroy(void) {
-   renderer_destroy_layer(layer_bg);
-   renderer_destroy_layer(layer_test);
    renderer_destroy_layer(layer_sized);
+   renderer_destroy_layer(layer_test);
+   renderer_destroy_layer(layer_bg);
 }
 
 // ============================================================================
@@ -387,7 +387,8 @@ void main_menu_scene_update(float delta_time) {
 }
 
 void main_menu_scene_render(void) {
-   menu_update_display();
+   renderer_clear();
+   menu_render(main_menu);
 }
 
 void main_menu_scene_destroy(void) {
@@ -620,7 +621,7 @@ void character_select_update(float delta_time) {
 }
 
 void character_select_render(void) {
-   menu_update_display();
+   menu_render(character_menu);
 }
 
 void character_select_handle_scene_change(SceneType new_scene) {

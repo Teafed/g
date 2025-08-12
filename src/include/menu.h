@@ -10,7 +10,7 @@
 #define MAX_OPTION_TEXT_LEN 32
 #define MAX_SCENE_TYPES 16
 
-typedef enum { // TODO: add to debug
+typedef enum {
    MENU_TYPE_MAIN,
    MENU_TYPE_CHARSEL,
    MENU_TYPE_SETTINGS,
@@ -18,18 +18,18 @@ typedef enum { // TODO: add to debug
    MENU_TYPE_MAX
 } MenuType;
 
-typedef enum { // TODO: add to debug
+typedef enum {
    OPTION_TYPE_ACTION,
    OPTION_TYPE_TOGGLE,
    OPTION_TYPE_CHOICE,
    OPTION_TYPE_SLIDER,
    OPTION_TYPE_SUBMENU,
-   OPTION_TYPE_CHARSEL
+   OPTION_TYPE_CHARSEL,
+   OPTION_TYPE_MAX
 } OptionType;
 
 typedef enum {
    MENU_ACTION_NONE,
-   MENU_ACTION_SUBMENU,
    MENU_ACTION_GAME_SETUP,    // action_data -> GameModeType
    MENU_ACTION_SCENE_CHANGE,  // action_data -> SceneType
    MENU_ACTION_BACK,
@@ -43,7 +43,7 @@ typedef struct MenuOption {
    bool enabled;
    
    union {
-      struct {  // ACTION/SUBMENU
+      struct {  // ACTION
          MenuAction action;
          int action_data;
       };
@@ -60,6 +60,9 @@ typedef struct MenuOption {
          int min_value;
          int max_value;
          int step;
+      };
+      struct { // SUBMENU
+         struct Menu* child;
       };
       struct {  // CHARSEL
          // this will change once i get to it
@@ -78,21 +81,8 @@ typedef struct Menu {
    int selected_option[MAX_PLAYERS];  // per-player selection
    
    LayerHandle layer_handle;
-   bool visible;
-   bool active;
-   
-   // parent-child relationships for submenus
    struct Menu* parent;
-   struct Menu* children[MAX_MENU_OPTIONS];
 } Menu;
-
-// TODO: implement this into scene, change SceneStackEntry
-//       maybe even replace scene stack system with a broad version of this?
-// typedef struct MenuMemory {
-   // int last_selected[MAX_PLAYERS];
-   // bool has_memory;
-// } MenuMemory;
-// extern MenuMemory g_menu_memory[MAX_SCENE_TYPES];
 
 extern Menu* g_active_menu;
 
@@ -100,8 +90,8 @@ extern Menu* g_active_menu;
 void menu_system_init(void); // called once in scene_init()
 Menu* menu_create(MenuType type, const char* title);
 void menu_handle_input(InputEvent event, InputState state, int device_id);
-void menu_update_display(void); // TODO: display menu based on SceneType
-void menu_render(Menu* menu); // renders a single menu
+void menu_render(Menu* root); // menu points to root
+void menu_draw_menu(Menu* menu); // renders a single menu
 void menu_destroy(Menu* menu); // called in x_scene_destroy()
 void menu_system_cleanup(void); // just set g_active_menu to NULL
 
@@ -120,12 +110,11 @@ void menu_remove_option(Menu* menu, int option_index);
 void menu_make_child(Menu* child, Menu* parent, int parent_option_index);
 void menu_navigate_to_child(Menu* menu, int option_index, int player);
 void menu_navigate_to_parent(Menu* menu, int player);
-void menu_set_active(Menu* menu); // make sure to deactivate whatever's active before calling`
-void menu_set_visibility(Menu* menu, bool value);
+void menu_set_active(Menu* menu);
 
-// memory management
-// void menu_save_position(int scene_type, int player, int position);
-// int menu_get_saved_position(int scene_type, int player);
-// void menu_clear_memory(int scene_type);
+void menu_save_current_state(void); // when leaving a menu (scene change or going deeper)
+void menu_restore_state(Menu* menu); // when entering a menu
+
+void menu_render_main_type(Menu* menu, int chain_position);
 
 #endif
