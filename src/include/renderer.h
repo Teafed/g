@@ -15,6 +15,8 @@ typedef uint32_t LayerHandle;
 #define GAME_WIDTH_FWVGA 854
 #define GAME_HEIGHT_FWVGA 480
 
+#define RESIZE_DELAY 150 // ms
+
 typedef enum {
    RES_VGA,             // 640x480 (4:3)
    RES_FWVGA            // 854x480 (approximately 16:9)
@@ -66,6 +68,9 @@ typedef struct {
    SDL_Rect screen;                 // (window coords) rectangle for window screen
    float scale_factor;
    ResizeMode resize_mode;
+   bool resize_in_progress;         // only renders frozen composite frame until resizing is done
+   uint32_t resize_start_time;      // set if resize happens
+   uint32_t resize_delay_ms;
       
    DisplayMode display_mode;
    int last_windowed_width, last_windowed_height; // (window coords) updated when fullscreening
@@ -79,7 +84,6 @@ typedef struct {
    SpriteArray sprite_array;
    FontArray font_array;
    
-   bool recalculate_viewport;
    uint8_t clear_color_index;
    uint8_t transparent_color_index;
 } RendererState;

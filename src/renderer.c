@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "timing.h"
 #include "file.h"
 #include "debug.h"
 #include <stdlib.h>
@@ -11,8 +12,15 @@ static void calculate_viewport(void);
 static Layer* find_layer(LayerHandle handle);
 SDL_Surface* create_surface(void);
 void recreate_surface(SDL_Surface** surface);
+void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
-void d_print_renderer_dims(void);
+static void blit_masked_1x1(Layer* layer, ImageData* source, SDL_Rect src_rect,
+                            SDL_Rect dest_screen_rect, uint8_t draw_color,
+                            int clip_left, int clip_top);
+static void blit_masked_scaled(Layer* layer, ImageData* source, SDL_Rect src_rect,
+                              SDL_Rect dest_screen_rect, uint8_t draw_color,
+                              uint8_t size, int clip_left, int clip_top);
+void d_print_renderer_dims(void); // TODO: MOVE!!!
 
 // CORE FUNCTIONS
 bool renderer_init(float scale_factor) {
@@ -29,11 +37,14 @@ bool renderer_init(float scale_factor) {
    g_renderer.display_resolution = RES_VGA;
    g_renderer.game_coords = (SDL_Rect){ 0, 0, GAME_WIDTH_VGA, GAME_HEIGHT_VGA };
    
-   g_renderer.resize_mode = RESIZE_FIT;
    g_renderer.screen = (SDL_Rect){ 0, 0, (int)(GAME_WIDTH_FWVGA * scale_factor), (int)(GAME_HEIGHT_FWVGA * scale_factor) };
    g_renderer.scale_factor = scale_factor;
    calculate_viewport();
-   g_renderer.recalculate_viewport = false;
+   
+   g_renderer.resize_mode = RESIZE_FIT;
+   g_renderer.resize_in_progress = false;
+   g_renderer.resize_start_time = timing_get_game_time_ms();
+   g_renderer.resize_delay_ms = RESIZE_DELAY;
    
    g_renderer.display_mode = DISPLAY_WINDOWED;
    g_renderer.last_windowed_width = g_renderer.screen.w;
@@ -156,33 +167,21 @@ extern void scene_render(void);
 void renderer_present(void) {
    if (!g_renderer.initialized) return;
    
-   if (g_renderer.recalculate_viewport == true) {
-      calculate_viewport();
-      int new_w, new_h;
-      SDL_GetWindowSize(g_renderer.window, &new_w, &new_h);
+   if (g_renderer.resize_in_progress) {
+      uint32_t current_time = timing_get_game_time_ms();
+      uint32_t time_since_resize = current_time - g_renderer.resize_start_time;
       
-      if (g_renderer.composite_surface->w != new_w || g_renderer.composite_surface->h != new_h) {
-         printf("recreating composite surface");
-         SDL_FreeSurface(g_renderer.composite_surface);
-         g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                     0, g_renderer.screen.w, g_renderer.screen.h,
-                     32, SDL_PIXELFORMAT_RGBA8888);
-         if (d_dne(g_renderer.composite_surface)) {
-            return;
-         }
-
-         for (int i = 0; i < g_renderer.layer_count; i++) {
-            if (i != 0) printf(", %d", i);
-            else printf(" and layer %d", i);
-            recreate_surface(&g_renderer.layers[i].surface);
-         }
-         printf("\n");
+      if (time_since_resize >= g_renderer.resize_delay_ms) {
+         resize_all_surfaces();
+         g_renderer.resize_in_progress = false;
+      } else {
+         // stretch existing composite for now
+         SDL_Rect stretch_rect = {0, 0, g_renderer.screen.w, g_renderer.screen.h};
+         SDL_BlitScaled(g_renderer.composite_surface, NULL, 
+                        g_renderer.window_surface, &stretch_rect);
+         SDL_UpdateWindowSurface(g_renderer.window);
+         return;
       }
-      g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
-      if (d_dne(g_renderer.window_surface)) return;
-      g_renderer.recalculate_viewport = false;
-      // d_print_renderer_dims();
-      return;
    }
    
    scene_render(); // get all rendering calls from current scene
@@ -220,11 +219,18 @@ void renderer_handle_window_event(SDL_Event* event) {
    case SDL_WINDOWEVENT_SIZE_CHANGED:
       g_renderer.screen.w = event->window.data1;
       g_renderer.screen.h = event->window.data2;
-      g_renderer.recalculate_viewport = true;
+      if (!g_renderer.resize_in_progress) {
+         g_renderer.resize_in_progress = true;
+         g_renderer.resize_start_time = timing_get_game_time_ms();
+      } else {
+         // subsequent resize events - just update the start time
+         g_renderer.resize_start_time = timing_get_game_time_ms();
+      }
+      calculate_viewport();
       break;
 
    case SDL_WINDOWEVENT_EXPOSED:
-
+      // hello
       break;
       
    case SDL_WINDOWEVENT_MINIMIZED:
@@ -433,44 +439,47 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_re
                           int dest_x, int dest_y, uint8_t draw_color) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || !source) return;
+
+   SDL_Rect dest_game_rect = {
+      dest_x,
+      dest_y,
+      src_rect.w * layer->size,
+      src_rect.h * layer->size
+   };
+   SDL_Rect dest_screen_rect = dest_game_rect;
+   renderer_convert_game_to_screen(&dest_screen_rect);
    
-   // get layer pixel data
-   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
-   int layer_pitch = layer->surface->pitch;
+   // bounds checking once
+   if (dest_screen_rect.x >= layer->surface->w ||
+       dest_screen_rect.y >= layer->surface->h ||
+       dest_screen_rect.x + dest_screen_rect.w <= 0 ||
+       dest_screen_rect.y + dest_screen_rect.h <= 0) {
+      return;
+   }
    
-   for (int py = 0; py < src_rect.h; py++) {
-      for (int px = 0; px < src_rect.w; px++) {
-         // source pixel position
-         int src_pixel_x = src_rect.x + px;
-         int src_pixel_y = src_rect.y + py;
-         int src_offset = (src_pixel_y * source->width + src_pixel_x) * 4;
-         
-         // check if source pixel is dark enough
-         uint8_t pixel_value = source->data[src_offset + 1]; // green channel
-         
-         if (pixel_value > 128) continue; // transparent pixel, skip
-         
-         // convert this single game pixel to screen rectangle
-         SDL_Rect game_pixel = { 
-            dest_x + px * layer->size, 
-            dest_y + py * layer->size, 
-            layer->size, 
-            layer->size 
-         };
-         // SDL_Rect game_pixel = { dest_x + px, dest_y + py, 1 * layer->size, 1 * layer->size };
-         renderer_convert_game_to_screen(&game_pixel);
-         
-         // fill the scaled rectangle
-         for (int sy = game_pixel.y; sy < game_pixel.y + game_pixel.h; sy++) {
-            for (int sx = game_pixel.x; sx < game_pixel.x + game_pixel.w; sx++) {
-               if (sx >= 0 && sx < layer->surface->w && 
-                   sy >= 0 && sy < layer->surface->h) {
-                  int layer_offset = sy * layer_pitch + sx;
-                  layer_pixels[layer_offset] = draw_color;
-               }
-            }
-         }
-      }
+   // clamp to surface bounds
+   int clip_left = dest_screen_rect.x < 0 ? -dest_screen_rect.x : 0;
+   int clip_top = dest_screen_rect.y < 0 ? -dest_screen_rect.y : 0;
+   int clip_right = (dest_screen_rect.x + dest_screen_rect.w > layer->surface->w) ?
+                    (dest_screen_rect.x + dest_screen_rect.w - layer->surface->w) : 0;
+   int clip_bottom = (dest_screen_rect.y + dest_screen_rect.h > layer->surface->h) ?
+                     (dest_screen_rect.y + dest_screen_rect.h - layer->surface->h) : 0;
+   
+   // adjust destination rect
+   dest_screen_rect.x += clip_left;
+   dest_screen_rect.y += clip_top;
+   dest_screen_rect.w -= (clip_left + clip_right);
+   dest_screen_rect.h -= (clip_bottom + clip_top);
+   
+   if (dest_screen_rect.w <= 0 || dest_screen_rect.h <= 0) return;
+   
+   // fast path for 1x1 scaling
+   if (layer->size == 1) {
+      blit_masked_1x1(layer, source, src_rect, dest_screen_rect, draw_color, 
+                       clip_left, clip_top);
+   } else {
+      blit_masked_scaled(layer, source, src_rect, dest_screen_rect, draw_color, 
+                         layer->size, clip_left, clip_top);
    }
 }
 
@@ -509,6 +518,7 @@ void renderer_draw_rect(LayerHandle handle, SDL_Rect rect, uint8_t color_index) 
    SDL_FillRect(layer->surface, &rect, color_index);
 }
 
+// TODO: resized characters start looking weird
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index) {
    Layer* layer = find_layer(handle);
    Font* font = file_get_font(&g_renderer.font_array, font_type);
@@ -761,6 +771,88 @@ void recreate_surface(SDL_Surface** surface) {
    // d_var((*surface)->h);
 }
 
+void resize_all_surfaces(void) {
+   int new_w, new_h;
+   SDL_GetWindowSize(g_renderer.window, &new_w, &new_h);
+   
+   if (g_renderer.composite_surface->w != new_w || g_renderer.composite_surface->h != new_h) {
+      printf("recreating composite surface");
+      SDL_FreeSurface(g_renderer.composite_surface);
+      g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
+                     0, g_renderer.screen.w, g_renderer.screen.h,
+                     32, SDL_PIXELFORMAT_RGBA8888);
+      if (d_dne(g_renderer.composite_surface)) {
+         return;
+      }
+      for (int i = 0; i < g_renderer.layer_count; i++) {
+         if (i != 0) printf(", %d", i);
+         else printf(" and layer %d", i);
+         recreate_surface(&g_renderer.layers[i].surface);
+      }
+      printf("\n");
+   }
+   g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
+   if (d_dne(g_renderer.window_surface)) d_err("can't get widnow surfact haha");
+   // d_print_renderer_dims();
+   return;
+}
+
+static void blit_masked_1x1(Layer* layer, ImageData* source, SDL_Rect src_rect,
+                            SDL_Rect dest_screen_rect, uint8_t draw_color,
+                            int clip_left, int clip_top) {
+   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
+   int layer_pitch = layer->surface->pitch;
+   
+   for (int y = 0; y < dest_screen_rect.h; y++) {
+      // calculate source and dest row pointers once per row
+      int src_y = src_rect.y + y + clip_top;
+      int src_row_offset = src_y * source->width * 4;
+      uint8_t* src_row = &source->data[src_row_offset + (src_rect.x + clip_left) * 4];
+      
+      int dest_y = dest_screen_rect.y + y;
+      uint8_t* dest_row = &layer_pixels[dest_y * layer_pitch + dest_screen_rect.x];
+      
+      // process entire row with pointer arithmetic
+      for (int x = 0; x < dest_screen_rect.w; x++) {
+         if (src_row[x * 4 + 1] <= 128) { // green channel check
+            dest_row[x] = draw_color;
+         }
+      }
+   }
+}
+
+static void blit_masked_scaled(Layer* layer, ImageData* source, SDL_Rect src_rect,
+                              SDL_Rect dest_screen_rect, uint8_t draw_color,
+                              uint8_t size, int clip_left, int clip_top) {
+   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
+   int layer_pitch = layer->surface->pitch;
+   
+   // calculate how many source pixels we're actually processing
+   int src_pixels_w = dest_screen_rect.w / size;
+   int src_pixels_h = dest_screen_rect.h / size;
+   
+   for (int src_y = 0; src_y < src_pixels_h; src_y++) {
+      for (int src_x = 0; src_x < src_pixels_w; src_x++) {
+         // source pixel check
+         int source_pixel_x = src_rect.x + src_x + clip_left / size;
+         int source_pixel_y = src_rect.y + src_y + clip_top / size;
+         int src_offset = (source_pixel_y * source->width + source_pixel_x) * 4;
+         
+         if (source->data[src_offset + 1] > 128) continue; // transparent
+         
+         // fill the size x size block efficiently
+         int block_x = dest_screen_rect.x + (src_x * size);
+         int block_y = dest_screen_rect.y + (src_y * size);
+         
+         // fill block row by row (cache-friendly)
+         for (int by = 0; by < size; by++) {
+            uint8_t* dest_row = &layer_pixels[(block_y + by) * layer_pitch + block_x];
+            memset(dest_row, draw_color, size); // much faster than individual pixel sets
+         }
+      }
+   }
+}
+
 static SDL_Color* get_palette_colors(void) {
    static SDL_Color colors[PALETTE_SIZE];
    static bool initialized = false;
@@ -775,6 +867,10 @@ static SDL_Color* get_palette_colors(void) {
       initialized = true;
    }
    return colors;
+}
+
+const RendererState* renderer_get_debug_state(void) {
+   return &g_renderer;
 }
 
 void d_print_renderer_dims(void) {
