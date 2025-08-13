@@ -4,7 +4,6 @@
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
-#include <math.h> // for roundf() or floorf()
 
 static RendererState g_renderer = { 0 };
 
@@ -475,10 +474,10 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_re
    
    // fast path for 1x1 scaling
    if (layer->size == 1) {
-      blit_masked_1x1(layer, source, src_rect, dest_screen_rect, draw_color, 
+      blit_masked_1x1(layer, source, src_rect, dest_screen_rect, draw_color,
                        clip_left, clip_top);
    } else {
-      blit_masked_scaled(layer, source, src_rect, dest_screen_rect, draw_color, 
+      blit_masked_scaled(layer, source, src_rect, dest_screen_rect, draw_color,
                          layer->size, clip_left, clip_top);
    }
 }
@@ -608,6 +607,7 @@ void renderer_convert_game_to_screen(SDL_Rect* rect) {
    
    if (!rect) return;
 
+/*
    // METHOD 1 - edge rounding
    float left = g_renderer.viewport.x + (rect->x * g_renderer.scale_factor);
    float right = g_renderer.viewport.x + ((rect->x + rect->w) * g_renderer.scale_factor);
@@ -618,8 +618,7 @@ void renderer_convert_game_to_screen(SDL_Rect* rect) {
    rect->y = (int)roundf(top);
    rect->w = (int)roundf(right) - rect->x;
    rect->h = (int)roundf(bottom) - rect->y;
-
-/*
+   
    // METHOD 2 - floor-based mapping
    float left = g_renderer.viewport.x + (rect->x * g_renderer.scale_factor);
    float right = g_renderer.viewport.x + ((rect->x + rect->w) * g_renderer.scale_factor);
@@ -631,7 +630,21 @@ void renderer_convert_game_to_screen(SDL_Rect* rect) {
    rect->w = (int)floorf(right) - rect->x;
    rect->h = (int)floorf(bottom) - rect->y;
 */
-   // METHOD 3 - build a coordinate map. faster conversions, but uses more memory, and have to rebuild when scale_factor changes
+   
+   // METHOD 3 - integer math w/ fixed-point scaling
+   // use integer math with fixed-point scaling
+   int sf1000 = (int)(g_renderer.scale_factor * 1000.0f); // 3 digits precision
+   
+   // edge-based conversion with integer math
+   int left = g_renderer.viewport.x + (rect->x * sf1000) / 1000;
+   int right = g_renderer.viewport.x + ((rect->x + rect->w) * sf1000) / 1000;
+   int top = g_renderer.viewport.y + (rect->y * sf1000) / 1000;
+   int bottom = g_renderer.viewport.y + ((rect->y + rect->h) * sf1000) / 1000;
+   
+   rect->x = left;
+   rect->y = top;
+   rect->w = right - left;
+   rect->h = bottom - top;
    
    // printf("%s\n", d_name_rect(rect));
 }
