@@ -5,7 +5,7 @@
 
 extern void game_shutdown(void);
 
-InputSystem g_input = { 0 }; // should this be static?
+static InputSystem g_input = { 0 }; // should this be static?
 
 // core functions
 void input_init(void) {

@@ -117,9 +117,6 @@ typedef struct {
    float input_buffer_time;  // time to buffer inputs (in ms)
 } InputSystem;
 
-// global input system
-extern InputSystem g_input;
-
 // core functions
 void input_init(void);
 void input_update(float delta_time);

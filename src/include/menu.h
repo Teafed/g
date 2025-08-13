@@ -84,8 +84,6 @@ typedef struct Menu {
    struct Menu* parent;
 } Menu;
 
-extern Menu* g_active_menu;
-
 // core functions
 void menu_system_init(void); // called once in scene_init()
 Menu* menu_create(MenuType type, const char* title);

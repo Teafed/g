@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-Menu* g_active_menu = NULL;
+static Menu* g_active_menu = NULL;
 static Menu* last_active_menu = NULL; // to track when active menu changes
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size);
 static void process_action(MenuAction action, int data, int player);
