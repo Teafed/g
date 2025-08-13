@@ -149,10 +149,10 @@ bool input_pressed_buffered(InputEvent event, int device_id, float buffer_time);
 bool input_combo_pressed(InputEvent primary, InputEvent secondary, int device_id);
 
 // utility functions
+const InputSystem* input_get_debug_state(void); // read-only pointer
 int input_find_device_by_guid(SDL_JoystickGUID guid);
 bool input_is_device_connected(int device_id);
 void input_set_player_device(int player, int device_id);
 int input_get_player_device(int player);
 int input_get_player(int device_id); // returns 0 if unassigned
-
 #endif

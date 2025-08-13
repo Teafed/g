@@ -135,9 +135,10 @@ const char* d_name_input_raw_key(int key) {
 }
 
 void d_print_all_mappings(void) {
+   const InputSystem* g_input = input_get_debug_state();
    printf("all input mappings:\n");
-   InputMapping* temp = g_input.mappings;
-   for (int i = 0; i < g_input.mapping_count; i++) {
+   const InputMapping* temp = g_input->mappings;
+   for (int i = 0; i < g_input->mapping_count; i++) {
       printf("device_id %d: ", temp[i].device_id);
       printf("raw_key = %s", d_name_input_raw_key(temp[i].raw_key));
       printf(" (%d)\n", temp[i].raw_key);
@@ -147,10 +148,11 @@ void d_print_all_mappings(void) {
 }
 
 void d_print_current_input_state(int dev) {
-   if (!g_input.devices[dev].connected)
+   const InputSystem* g_input = input_get_debug_state();
+   if (!g_input->devices[dev].connected)
       printf("device %d is not connected, so i won't output its current input state\n", dev);
-   printf("current input state for device %d:\n", g_input.devices[dev].device_id);
-   InputState* states = g_input.devices[dev].states;
+   printf("current input state for device %d:\n", g_input->devices[dev].device_id);
+   const InputState* states = g_input->devices[dev].states;
    for (int i = 0; i < INPUT_MAX; i++) {
       if (states[i].pressed) {
          printf("%s\n", d_name_input_event(i));
@@ -159,13 +161,14 @@ void d_print_current_input_state(int dev) {
 }
 
 void d_print_devices(void) {
+   const InputSystem* g_input = input_get_debug_state();
    printf("\n=== INPUT DEVICES DEBUG ===\n");
-   printf("Player 1 device: %d\n", g_input.player1_device);
-   printf("Player 2 device: %d\n", g_input.player2_device);
-   printf("Frame: %u\n", g_input.frame_count);
+   printf("Player 1 device: %d\n", g_input->player1_device);
+   printf("Player 2 device: %d\n", g_input->player2_device);
+   printf("Frame: %u\n", g_input->frame_count);
    
    for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
-      InputDevice* device = &g_input.devices[i];
+      const InputDevice* device = &g_input->devices[i];
       printf("\nDevice[%d]:\n", i);
       printf("  Connected: %s\n", device->connected ? "YES" : "NO");
       

@@ -33,5 +33,6 @@ uint32_t timing_get_frame_count(void);
 uint32_t timing_get_game_time_ms(void);
 float timing_get_current_fps(void);
 void timing_get_performance_info(uint32_t* min_ms, uint32_t* max_ms, uint32_t* avg_ms, uint32_t* frames_over);
+const TimingState* timing_get_debug_state(void); // read-only pointer
 
 #endif

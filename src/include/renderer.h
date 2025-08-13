@@ -62,11 +62,11 @@ typedef struct {
    DisplayResolution display_resolution;
    SDL_Rect game_coords;            // (game coords) height and width based on DisplayResolution
    
-   ResizeMode resize_mode;
    SDL_Rect viewport;               // (window coords) rectangle for game area
    SDL_Rect screen;                 // (window coords) rectangle for window screen
    float scale_factor;
-   
+   ResizeMode resize_mode;
+      
    DisplayMode display_mode;
    int last_windowed_width, last_windowed_height; // (window coords) updated when fullscreening
    
@@ -170,5 +170,6 @@ void renderer_get_viewport_dimensions(int* width, int* height);
 void renderer_get_game_dimensions(int* width, int* height);
 float renderer_get_scale_factor(void);
 bool renderer_is_in_viewport(int x, int y);
+const RendererState* renderer_get_debug_state(void);
 
 #endif

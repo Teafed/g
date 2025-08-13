@@ -101,3 +101,7 @@ void timing_get_performance_info(uint32_t* min_ms, uint32_t* max_ms,
    if (avg_ms) *avg_ms = g_timing.avg_frame_time;
    if (frames_over) *frames_over = g_timing.frames_over_budget;
 }
+
+const TimingState* timing_get_debug_state(void) {
+   return &g_timing;
+}

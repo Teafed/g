@@ -371,6 +371,10 @@ bool input_combo_pressed(InputEvent primary, InputEvent secondary, int device_id
 }
 
 // utility functions
+const InputSystem* input_get_debug_state(void) {
+   return &g_input;
+}
+
 int input_find_device_by_guid(SDL_JoystickGUID guid) {
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {  // skip keyboard (device 0)
       if (g_input.devices[i].info.valid_guid && 
