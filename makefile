@@ -8,7 +8,7 @@ OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 
 CC = gcc
 CFLAGS = -Wall -Wextra -g -std=c99 -I./$(SRC_DIR)/include
-LDFLAGS = -lSDL2 -ldl -lm # -lm is for include <math.h>
+LDFLAGS = -lSDL2 -ldl
 
 TARGET = $(BIN_DIR)/game
 
