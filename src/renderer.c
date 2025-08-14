@@ -95,17 +95,10 @@ bool renderer_init(float scale_factor) {
    d_logv(2, "screen = %s", d_name_rect(&g_renderer.screen));
    d_logv(2, "viewport = %s", d_name_rect(&g_renderer.viewport));
    
-   // create bottom layer & system layer
-   LayerHandle bg_layer = renderer_create_layer(true);
-   if (bg_layer == INVALID_LAYER) {
-      d_err("could not create background layer");
-      renderer_cleanup();
-      return false;
-   }
-   
+   // create system layer
    LayerHandle system_layer = renderer_create_layer(true);
    if (system_layer == INVALID_LAYER) {
-      d_err("could not create background layer");
+      d_err("could not create system layer");
       renderer_cleanup();
       return false;
    }
@@ -161,6 +154,7 @@ void renderer_present(void) {
    if (!g_renderer.initialized) return;
    
    if (g_renderer.resize_in_progress) {
+      calculate_viewport();
       uint32_t current_time = timing_get_game_time_ms();
       uint32_t time_since_resize = current_time - g_renderer.resize_start_time;
       
@@ -169,11 +163,13 @@ void renderer_present(void) {
          resize_all_surfaces();
          g_renderer.resize_in_progress = false;
       } else {
-         // TODO: the stretch doesn't actually show...
-         // stretch existing composite for now
+         // TODO: make it stretch proportionally
          Rect stretch_rect = {0, 0, g_renderer.screen.w, g_renderer.screen.h};
-         // d_log("%s", d_name_rect(&stretch_rect));
-         SDL_BlitScaled(g_renderer.composite_surface, NULL, 
+         
+         g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
+         if (d_dne(g_renderer.window_surface)) d_err("can't get window surface");
+         
+         SDL_BlitScaled(g_renderer.composite_surface, NULL,
                         g_renderer.window_surface, &stretch_rect);
          SDL_UpdateWindowSurface(g_renderer.window);
          return;
@@ -223,7 +219,6 @@ void renderer_handle_window_event(SDL_Event* event) {
          // subsequent resize events - just update the start time
          g_renderer.resize_start_time = timing_get_game_time_ms();
       }
-      calculate_viewport();
       break;
 
    case SDL_WINDOWEVENT_EXPOSED:
@@ -750,7 +745,7 @@ static Layer* find_layer(LayerHandle handle) {
    return NULL;
 }
 
-// only used for layers
+// only used for layers - rename?
 SDL_Surface* create_surface(void) {
    SDL_Surface* surface = SDL_CreateRGBSurface(0, g_renderer.screen.w, g_renderer.screen.h, 8, 0, 0, 0, 0);
    if (d_dne(surface)) {
@@ -765,6 +760,7 @@ SDL_Surface* create_surface(void) {
    return surface;
 }
 
+// only used for layers - rename?
 void recreate_surface(SDL_Surface** surface) {
    // called if change in g_renderer.screen or transparent_color_index
    if (surface && *surface) {
@@ -791,7 +787,7 @@ void resize_all_surfaces(void) {
                      0, g_renderer.screen.w, g_renderer.screen.h,
                      32, SDL_PIXELFORMAT_RGBA8888);
       if (d_dne(g_renderer.composite_surface)) {
-         return;
+         d_err("couldn't recreate composite surface");
       }
       for (int i = 0; i < g_renderer.layer_count; i++) {
          if (i != 0) d_logl(", %d", i);
