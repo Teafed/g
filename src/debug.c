@@ -9,6 +9,7 @@ int LOG_VERBOSITY = LOG_NORMAL;
 // YEAH
 void d_log(const char* fmt, ...) {
    if (LOG_VERBOSITY == LOG_QUIET) return;
+   printf("[%d] ", timing_get_frame_count());
    va_list args;
    va_start(args, fmt);
    vprintf(fmt, args);
@@ -18,6 +19,7 @@ void d_log(const char* fmt, ...) {
 
 void d_logv(int level, const char* fmt, ...) {
    if (LOG_VERBOSITY < level) return;
+   printf("[%d] ", timing_get_frame_count());
    va_list args;
    va_start(args, fmt);
    vprintf(fmt, args);
@@ -26,21 +28,23 @@ void d_logv(int level, const char* fmt, ...) {
 }
 
 void d__err(const char* func, const char* file, int line, const char* fmt, ...) {
+   fprintf(stderr, "[%d] ", timing_get_frame_count());
    va_list args;
    va_start(args, fmt);
-   fprintf(stderr, "\033[1;31m[ERROR]\033[0m ");
+   fprintf(stderr, "\033[1;31m[ERR]\033[0m ");
    vfprintf(stderr, fmt, args);
    fprintf(stderr, "\n    at %s (%s:%d)\n", func, file, line);
    va_end(args);
 }
 
 bool d__dne(void* ptr, const char* name, const char* func, const char* file, int line) {
-    if (ptr == NULL) {
-        fprintf(stderr, "\033[1;31m[NULL]\033[0m %s is NULL!\n", name);
-        fprintf(stderr, "    at %s (%s:%d)\n", func, file, line);
-        return true;
-    }
-    return false;
+   if (ptr == NULL) {
+      fprintf(stderr, "[%d] ", timing_get_frame_count());
+      fprintf(stderr, "\033[1;31m[DNE]\033[0m %s is NULL!\n", name);
+      fprintf(stderr, "    at %s (%s:%d)\n", func, file, line);
+      return true;
+   }
+   return false;
 }
 
 // RENDERER
