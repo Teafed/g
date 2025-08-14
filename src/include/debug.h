@@ -15,6 +15,7 @@
 void    d_log(const char* fmt, ...); // appends \n unless string is empty
 void    d_logl(const char* fmt, ...); // log without frame count or new line
 void    d_logv(int level, const char* fmt, ...); // TODO: any way to check if i forgot to include an argument referenced in string?
+#define say(...) d_logl(__VA_ARGS__) // shorthand
 
 void    d__err(const char* func, const char* file, int line, const char* fmt, ...);
 #define d_err(...) d__err(__func__, __FILE__, __LINE__, __VA_ARGS__)
@@ -76,6 +77,7 @@ void d_print_devices(void);
 // SCENE
 #include "scene.h"
 const char* d_name_scene_type(SceneType scene);
+const char* d_name_game_mode_type(GameModeType type);
 void d_print_scene_stack_entry(int index);
 void d_print_scene_stack(void);
 
