@@ -114,7 +114,7 @@ void scene_push(SceneType new_scene) {
    // transition to new scene
    scene_change_to(new_scene);
    
-   d_logv(2, "scene_push() called:");
+   d_logv(3, "scene_push() called:");
    d_print_scene_stack();
 }
 
@@ -151,7 +151,7 @@ void scene_pop(void) {
             break;
       }
 
-      printf("scene_pop():\n");
+      d_logv(3, "scene_pop():");
       d_print_scene_stack();
    }
 }
@@ -223,7 +223,6 @@ void title_scene_init(void) {
    layer_bg = renderer_create_layer(true);
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
-   renderer_set_layer_opacity(layer_sized, 64);
    renderer_set_layer_size(layer_sized, 2);
 }
 
@@ -288,34 +287,6 @@ void title_scene_render(void) {
       renderer_draw_rect(layer_test, border3, 9);
       renderer_draw_rect(layer_test, border4, 9);
    }
-
-   { // draw pixels in the corner
-      renderer_draw_pixel(layer_test, 1, 1, 17);
-      renderer_draw_pixel(layer_test, 1, 3, 17);
-      renderer_draw_pixel(layer_test, 1, 5, 17);
-      renderer_draw_pixel(layer_test, 1, 7, 17);
-      renderer_draw_pixel(layer_test, 1, 9, 17);
-      renderer_draw_pixel(layer_test, 2, 2, 16);
-      renderer_draw_pixel(layer_test, 2, 4, 16);
-      renderer_draw_pixel(layer_test, 2, 6, 16);
-      renderer_draw_pixel(layer_test, 2, 8, 16);
-      renderer_draw_pixel(layer_test, 3, 1, 15);
-      renderer_draw_pixel(layer_test, 3, 3, 15);
-      renderer_draw_pixel(layer_test, 3, 5, 15);
-      renderer_draw_pixel(layer_test, 3, 7, 15);
-      renderer_draw_pixel(layer_test, 4, 2, 15);
-      renderer_draw_pixel(layer_test, 4, 4, 15);
-      renderer_draw_pixel(layer_test, 4, 6, 15);
-      renderer_draw_pixel(layer_test, 5, 1, 14);
-      renderer_draw_pixel(layer_test, 5, 3, 14);
-      renderer_draw_pixel(layer_test, 5, 5, 14);
-      renderer_draw_pixel(layer_test, 6, 2, 14);
-      renderer_draw_pixel(layer_test, 6, 4, 14);
-      renderer_draw_pixel(layer_test, 7, 3, 0);
-      renderer_draw_pixel(layer_test, 7, 1, 0);
-      renderer_draw_pixel(layer_test, 8, 2, 0);
-      renderer_draw_pixel(layer_test, 9, 1, 0);
-   }
    
    { // misc testing
       FontType font = FONT_ACER_8_8;
@@ -338,12 +309,21 @@ void title_scene_render(void) {
       renderer_draw_string(layer_test, font2, line4, 190, 80, 13);
       renderer_draw_string(layer_test, font2, line5, 190, 110, 13);
       renderer_draw_string(layer_test, font2, line6, 190, 123, 13);
-      
+
+      for (int i = 0; i < 25; i++) {
+         renderer_draw_rect(layer_test, (SDL_Rect){10 + (i * 8), 10, 8, 8}, (i % 2 == 0) ? 21 : 18);
+         renderer_draw_rect(layer_test, (SDL_Rect){10 + (i * 8), 20, 8, 8}, (i % 2 == 0) ? 18 : 21);
+      }
       renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
       renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
-   
+
+      for (int i = 0; i < 25; i++) {
+         renderer_draw_rect(layer_sized, (SDL_Rect){10 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
+         renderer_draw_rect(layer_sized, (SDL_Rect){10 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
+      }
       renderer_draw_string(layer_sized, font, "This is the title screen.", 10, 30, 4);
       renderer_draw_string(layer_sized, font, "   Press [j] to start.", 10, 50, 4);
+      renderer_draw_char(layer_sized, font2, '%', 100, 100, 4);
    }
 }
 
@@ -474,10 +454,11 @@ void main_menu_update_input_display(void) {
 
    InputDisplayConfig* devs[] = { dev_0, dev_1, dev_2, dev_3 };
    
+   const InputSystem* g_input = input_get_debug_state(); // DOTO: MAKE ACCESSOR
    for (int dev_i = 0; dev_i < MAX_INPUT_DEVICES; dev_i++) {
-      if (g_input.devices[dev_i].connected) {
+      if (g_input->devices[dev_i].connected) {
          for (int btn_i = 0; btn_i < 8; btn_i++) { // 8 buttons to display here
-            if (input_held(devs[dev_i][btn_i].event, g_input.devices[dev_i].device_id)) {
+            if (input_held(devs[dev_i][btn_i].event, g_input->devices[dev_i].device_id)) {
                // !!! renderer_set_char(devs[dev_i][btn_i].col, devs[dev_i][btn_i].row, 
                //   devs[dev_i][btn_i].label, devs[dev_i][btn_i].fg_color, 4);
             }
