@@ -16,7 +16,6 @@ static SDL_Color* get_palette_colors(void);
 static void blit_masked_scaled(Layer* layer, ImageData* source, SDL_Rect src_rect,
                               SDL_Rect dest_screen_rect, uint8_t draw_color,
                               uint8_t size, int clip_left, int clip_top);
-void d_print_renderer_dims(void); // TODO: MOVE!!!
 
 // CORE FUNCTIONS
 bool renderer_init(float scale_factor) {
@@ -855,24 +854,4 @@ static SDL_Color* get_palette_colors(void) {
 
 const RendererState* renderer_get_debug_state(void) {
    return &g_renderer;
-}
-
-void d_print_renderer_dims(void) {
-   d_log("-------------");
-   d_log("RENDERER DIMS");
-   d_var(g_renderer.window_surface->w);
-   d_var(g_renderer.window_surface->h);
-   d_var(g_renderer.composite_surface->w);
-   d_var(g_renderer.composite_surface->h);
-   d_log("display_resolution = %s", d_name_display_resolution(g_renderer.display_resolution));
-   d_log("viewport =           %s", d_name_rect(&g_renderer.viewport));
-   d_log("screen =             %s", d_name_rect(&g_renderer.screen));
-   d_log("display_mode =       %s", d_name_display_mode(g_renderer.display_mode));
-   d_var(g_renderer.last_windowed_width);
-   d_var(g_renderer.last_windowed_height);
-   for (int i = 0; i < g_renderer.layer_count; i++) {
-      d_log("layer %d:", i);
-      d_var(g_renderer.layers[i].surface->w);
-      d_var(g_renderer.layers[i].surface->h);
-   }
 }

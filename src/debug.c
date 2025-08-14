@@ -90,6 +90,26 @@ const char* d_name_rect(SDL_Rect* rect) {
    return buffer;
 }
 
+void d_print_renderer_dims(void) {
+   d_log("-------------");
+   d_log("RENDERER DIMS");
+   d_var(g_renderer.window_surface->w);
+   d_var(g_renderer.window_surface->h);
+   d_var(g_renderer.composite_surface->w);
+   d_var(g_renderer.composite_surface->h);
+   d_log("display_resolution = %s", d_name_display_resolution(g_renderer.display_resolution));
+   d_log("viewport =           %s", d_name_rect(&g_renderer.viewport));
+   d_log("screen =             %s", d_name_rect(&g_renderer.screen));
+   d_log("display_mode =       %s", d_name_display_mode(g_renderer.display_mode));
+   d_var(g_renderer.last_windowed_width);
+   d_var(g_renderer.last_windowed_height);
+   for (int i = 0; i < g_renderer.layer_count; i++) {
+      d_log("layer %d:", i);
+      d_var(g_renderer.layers[i].surface->w);
+      d_var(g_renderer.layers[i].surface->h);
+   }
+}
+
 // FILE
 const char* d_name_font(FontType type) {
     static const char* names[] = {

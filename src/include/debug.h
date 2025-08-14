@@ -57,6 +57,7 @@ static inline void d__var_ptr(void* x, const char* name) {
 const char* d_name_rect(SDL_Rect* rect);
 const char* d_name_display_resolution(DisplayResolution res);
 const char* d_name_display_mode(DisplayMode mode);
+void d_print_renderer_dims(void);
 
 // FILE
 #include "file.h" // for FontType
