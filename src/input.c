@@ -134,10 +134,10 @@ void input_scan_devices(void) {
          if (!device->controller) {
             device->controller = SDL_GameControllerOpen(sdl_idx);
             if (!device->controller) {
-               printf("SDL_GameControllerOpen failed: %s (Device %d)\n", name, device_id);
+               d_err("SDL_GameControllerOpen failed: %s (Device %d)", name, device_id);
                break;
             }
-            printf("Controller opened: %s (Device %d)\n", name, device_id);
+            d_log("Controller opened: %s (Device %d)\n", name, device_id);
          }
          
          device->connected = (device->controller != NULL);
@@ -152,7 +152,7 @@ void input_scan_devices(void) {
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {
       InputDevice* device = &g_input.devices[i];
       if (device->controller && !SDL_GameControllerGetAttached(device->controller)) {
-         printf("Controller disconnected: %s (Device %d)\n", 
+         d_log("Controller disconnected: %s (device %d)",
                device->info.name, device->device_id);
          SDL_GameControllerClose(device->controller);
          device->controller = NULL;
@@ -262,7 +262,7 @@ void input_setup_handlers(void) {
 
 void input_set_context(GameContext context) {
    g_input.current_context = context;
-   d_logv(2, "input context changed to %s", d_name_game_context(context));
+   d_logv(2, "GameContext = %s", d_name_game_context(context));
 }
 
 void input_set_context_handler(GameContext context, InputHandler handler) {
@@ -394,10 +394,10 @@ bool input_is_device_connected(int device_id) {
 void input_set_player_device(int player, int device_id) {
    if (player == 1) {
       g_input.player1_device = device_id;
-      printf("Player 1 assigned to device %d\n", device_id);
+      d_logv(2, "Player 1 assigned to device %d", device_id);
    } else if (player == 2) {
       g_input.player2_device = device_id;
-      printf("Player 2 assigned to device %d\n", device_id);
+      d_logv(2, "Player 2 assigned to device %d", device_id);
    }
 }
 

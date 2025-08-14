@@ -17,7 +17,7 @@ static void verify_image_colors(ImageData* image_data);
 
 int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    if (!sprites || !fonts) {
-      d_log("sprites or fonts do not exist");
+      d_err("sprites or fonts do not exist");
       return 0;
    }   
 
@@ -45,7 +45,7 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    
    find_handle = FindFirstFile(search_path, &find_data);
    if (find_handle == INVALID_HANDLE_VALUE) {
-      printf("no bitmap files found in %s\n", DIR_SHEETS);
+      d_err("no bitmap files found in %s", DIR_SHEETS);
       free(sprites->sprites);
       free(fonts->fonts);
       return 0;
@@ -318,7 +318,7 @@ static ImageData* load_bitmap(const char* fname) {
    uint32_t data_size = dib_header.width * dib_header.height * 4;
    
    image_data = malloc(sizeof(ImageData) + data_size);
-   if (!image_data) { printf("couldn't malloc ImageData\n"); return NULL; }
+   if (!image_data) { d_err("couldn't malloc ImageData"); return NULL; }
    {
       image_data->size = data_size;
       image_data->width = dib_header.width;

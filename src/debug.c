@@ -29,7 +29,9 @@ void d_logl(const char* fmt, ...) {
 
 void d_logv(int level, const char* fmt, ...) {
    if (LOG_VERBOSITY < level) return;
-   printf("[%d] ", timing_get_frame_count());
+   uint32_t frame_count = timing_get_frame_count();
+   if (fmt[0] == '\0') { printf("[%d] ", frame_count); return; }
+   printf("[%d] ", frame_count);
    va_list args;
    va_start(args, fmt);
    vprintf(fmt, args);
@@ -204,9 +206,24 @@ void d_print_devices(void) {
 }
 
 // SCENE
+const char* d_name_game_mode_type(GameModeType type) {
+   static const char* names[] = {
+      "GAME_MODE_ARCADE",
+      "GAME_MODE_TRAINING",
+      "GAME_MODE_STORY",
+      "GAME_MODE_VERSUS",
+      "GAME_MODE_MAX"
+   };
+   return (type < GAME_MODE_MAX) ? names[type] : "UNKNOWN!";
+}
 const char* d_name_scene_type(SceneType type) {
    static const char* names[] = {
-      "SCENE_TITLE", "SCENE_MAIN_MENU", "SCENE_CHARACTER_SELECT", "SCENE_GAMEPLAY", "SCENE_SETTINGS"
+      "SCENE_TITLE",
+      "SCENE_MAIN_MENU",
+      "SCENE_CHARACTER_SELECT",
+      "SCENE_GAMEPLAY",
+      "SCENE_SETTINGS",
+      "SCENE_MAX"
    };
    return (type < SCENE_MAX) ? names[type] : "UNKNOWN!";
 }
@@ -216,17 +233,19 @@ void d_print_scene_stack_entry(int index) {
    
    if (index < scene_get_stack_depth()) {
         SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-        printf("%s", d_name_scene_type(scene->type));
-        printf(" | P1 = %d", scene->player_devices[0]);
-        printf(" | P2 = %d", scene->player_devices[1]);
-        printf(" | pos = %d\n", scene->menu_position);
+        d_log("");
+        d_logl("%s", d_name_scene_type(scene->type));
+        d_logl(" | P1 = %d", scene->player_devices[0]);
+        d_logl(" | P2 = %d", scene->player_devices[1]);
+        d_logl(" | pos = %d\n", scene->menu_position);
    }
    /* else if (index < MAX_SCENE_STACK_DEPTH) {
         SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-        printf("%s", d_name_scene_type(scene->type));
-        printf(" | P1 = %d", scene->player_devices[0]);
-        printf(" | P2 = %d", scene->player_devices[1]);
-        printf(" | pos = %d ***\n", scene->menu_position
+        d_log("");
+        d_logl("%s", d_name_scene_type(scene->type));
+        d_logl(" | P1 = %d", scene->player_devices[0]);
+        d_logl(" | P2 = %d", scene->player_devices[1]);
+        d_logl(" | pos = %d ***\n", scene->menu_position
    }*/
 }
 

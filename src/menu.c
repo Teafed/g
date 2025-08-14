@@ -418,7 +418,7 @@ void menu_set_active(Menu* menu) {
    if (d_dne(menu)) return;
 
    g_active_menu = menu;
-   d_logv(2, "menu %s set as active", menu->title);
+   d_logv(2, "g_active_menu = %s", menu->title);
 }
 
 
@@ -450,62 +450,61 @@ void menu_restore_state(Menu* menu) { // TODO
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size) {
    if (!buffer) return;
    switch (opt->type) {
-      case OPTION_TYPE_ACTION:
-      case OPTION_TYPE_SUBMENU:
-         snprintf(buffer, buffer_size, "%s", opt->text);
-         break;
-         
-      case OPTION_TYPE_TOGGLE:
+   case OPTION_TYPE_ACTION:
+   case OPTION_TYPE_SUBMENU:
+      snprintf(buffer, buffer_size, "%s", opt->text);
+      break;
+      
+   case OPTION_TYPE_TOGGLE:
+      snprintf(buffer, buffer_size, "%s: %s", opt->text, 
+              (opt->toggle_value && *opt->toggle_value) ? "ON" : "OFF");
+      break;
+      
+   case OPTION_TYPE_CHOICE:
+      if (opt->current_choice && *opt->current_choice < opt->choice_count) {
          snprintf(buffer, buffer_size, "%s: %s", opt->text, 
-                 (opt->toggle_value && *opt->toggle_value) ? "ON" : "OFF");
-         break;
-         
-      case OPTION_TYPE_CHOICE:
-         if (opt->current_choice && *opt->current_choice < opt->choice_count) {
-            snprintf(buffer, buffer_size, "%s: %s", opt->text, 
-                    opt->choices[*opt->current_choice]);
-         } else {
-            snprintf(buffer, buffer_size, "%s: ???", opt->text);
-         }
-         break;
-         
-      case OPTION_TYPE_SLIDER:
-         snprintf(buffer, buffer_size, "%s: %d", opt->text, 
-                 opt->slider_value ? *opt->slider_value : 0);
-         break;
-         
-      default:
-         snprintf(buffer, buffer_size, "%s", opt->text);
-         break;
+                 opt->choices[*opt->current_choice]);
+      } else {
+         snprintf(buffer, buffer_size, "%s: ???", opt->text);
+      }
+      break;
+      
+   case OPTION_TYPE_SLIDER:
+      snprintf(buffer, buffer_size, "%s: %d", opt->text, 
+              opt->slider_value ? *opt->slider_value : 0);
+      break;
+      
+   default:
+      snprintf(buffer, buffer_size, "%s", opt->text);
+      break;
    }
 }
 
 // placeholder for action processing - implement this
 static void process_action(MenuAction action, int data, int player) {
-   // this is where you'd handle scene changes, game setup, etc.
-   // based on your existing action types
-   
    switch (action) {
    case MENU_ACTION_SCENE_CHANGE:
       // change to scene specified in data
-      printf("changing to scene %d\n", data);
+      // TODO: this!!!!!!
+      d_logv(2, "SceneType = %s", d_name_scene_type(data));
       break;
       
    case MENU_ACTION_GAME_SETUP:
       // setup game with mode specified in data
-      printf("setting up game mode %d\n", data);
+      // TODO: this!!!!!!
+      d_logv(2, "GameModeType = %s", d_name_game_mode_type(data));
       break;
       
    case MENU_ACTION_BACK:
       // handle back action
       if (g_active_menu && g_active_menu->parent) {
-           menu_navigate_to_parent(g_active_menu, player);
+         menu_navigate_to_parent(g_active_menu, player);
       }
       break;
       
    case MENU_ACTION_QUIT:
       // handle quit
-      printf("quitting game\n");
+      d_logv(2, "MenuAction = %s", d_name_menu_action(action));
       break;
       
    default:

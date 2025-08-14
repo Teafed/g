@@ -1,13 +1,11 @@
-#include "renderer.h"
 #include "timing.h"
+#include "renderer.h"
 #include "input.h"
 #include "scene.h"
-#include "menu.h"
 #include "debug.h"
 #include <SDL2/SDL.h>
 
 extern int LOG_VERBOSITY;
-#define DEBUG_LAG_TEST
 
 typedef enum {
    GAME_RUNNING,
@@ -18,7 +16,7 @@ typedef struct {
    GameState state;
 } Game;
 
-Game g_game = { 0 }; // should this be static?
+Game g_game = { 0 };
 
 bool game_init(float scale_factor, int framerate);
 void game_update(float delta_time);
@@ -28,16 +26,16 @@ void game_shutdown(void);
 bool game_handle_flags(int argc, char *argv[], int* logging_mode, float* scale_factor, int* framerate);
 
 int main(int argc, char* argv[]) {
-   {  // initialize w flags
-      int logging_mode = 1;
-      float scale_factor = 1.0f;
-      int framerate = 60;
-      if (!game_handle_flags(argc, argv, &logging_mode, &scale_factor, &framerate))
-         return 1;
-      if (!game_init(scale_factor, framerate)) {
-         d_err("failed to initialize game");
-         return 1;
-      }
+   // initialize w flags
+   int logging_mode = 1;
+   float scale_factor = 1.0f;
+   int framerate = 60;
+   if (!game_handle_flags(argc, argv, &logging_mode, &scale_factor, &framerate))
+      return 1;
+   
+   if (!game_init(scale_factor, framerate)) {
+      d_err("failed to initialize game");
+      return 1;
    }
    
    while (g_game.state == GAME_RUNNING) {
@@ -46,14 +44,6 @@ int main(int argc, char* argv[]) {
       game_handle_events(delta_time);  // input & devices
       game_update(delta_time);         // calculations for next frame
       game_render();                   // render next frame
-
-      #ifdef DEBUG_LAG_TEST
-      static int lag_counter = 0;
-      if (++lag_counter % 180 == 0) {  // every 3 seconds at 60fps
-         SDL_Delay(1000);  // simulate 100ms lag spike
-      }
-      #endif
-
       timing_frame_end();
 
       if (timing_should_limit_frame()) { SDL_Delay(timing_get_frame_duration()); }
@@ -76,6 +66,7 @@ bool game_init(float scale_factor, int framerate) {
    scene_init();
 
    g_game.state = GAME_RUNNING;
+   d_log("Initialized :)");
    
    return true;
 }
@@ -85,20 +76,19 @@ void game_handle_events(float delta_time) {
 
    while (SDL_PollEvent(&e)) {
       switch (e.type) {
-         case SDL_QUIT:
-            game_shutdown();
-            return;
-            break;
-         case SDL_WINDOWEVENT:
-            renderer_handle_window_event(&e);
-            break;
-         case SDL_APP_LOWMEMORY:
-            printf("THE GAME IS LOW ON MEMORY!!!!!!!!\n");
-            break;
-         case SDL_FINGERDOWN:
-            printf("hehe :)\n");
-            game_shutdown();
-            break;
+      case SDL_QUIT:
+         game_shutdown();
+         return;
+      case SDL_WINDOWEVENT:
+         renderer_handle_window_event(&e);
+         break;
+      case SDL_APP_LOWMEMORY:
+         d_log("THE GAME IS LOW ON MEMORY!!!!!!!!\n");
+         break;
+      case SDL_FINGERDOWN:
+         d_log("hehe :)\n");
+         game_shutdown();
+         break;
       }
    }
 
