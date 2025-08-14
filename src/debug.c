@@ -9,11 +9,21 @@ int LOG_VERBOSITY = LOG_NORMAL;
 // YEAH
 void d_log(const char* fmt, ...) {
    if (LOG_VERBOSITY == LOG_QUIET) return;
-   printf("[%d] ", timing_get_frame_count());
+   uint32_t frame_count = timing_get_frame_count();
+   if (fmt[0] == '\0') { printf("[%d] ", frame_count); return; }
+   printf("[%d] ", frame_count);
    va_list args;
    va_start(args, fmt);
    vprintf(fmt, args);
    printf("\n");
+   va_end(args);
+}
+
+void d_logl(const char* fmt, ...) {
+   if (LOG_VERBOSITY == LOG_QUIET) return;
+   va_list args;
+   va_start(args, fmt);
+   vprintf(fmt, args);
    va_end(args);
 }
 

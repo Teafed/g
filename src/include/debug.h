@@ -12,7 +12,8 @@
 #define LOG_DEBUG 3
 
 // logging
-void    d_log(const char* fmt, ...);
+void    d_log(const char* fmt, ...); // appends \n unless string is empty
+void    d_logl(const char* fmt, ...); // log without frame count or new line
 void    d_logv(int level, const char* fmt, ...); // TODO: any way to check if i forgot to include an argument referenced in string?
 
 void    d__err(const char* func, const char* file, int line, const char* fmt, ...);
