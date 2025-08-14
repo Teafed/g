@@ -24,6 +24,7 @@ void    d__err(const char* func, const char* file, int line, const char* fmt, ..
 bool    d__dne(void* ptr, const char* name, const char* func, const char* file, int line);
 #define d_dne(ptr) d__dne((void*)(ptr), #ptr, __func__, __FILE__, __LINE__)
 
+// TODO: make one for rect
 static inline void d__var_int(int x, const char* name) {
    printf("%s = %d\n", name, x);
 }
@@ -54,7 +55,7 @@ static inline void d__var_ptr(void* x, const char* name) {
 
 // RENDERER
 #include "renderer.h" // for DisplayResolution, DisplayMode
-const char* d_name_rect(SDL_Rect* rect);
+const char* d_name_rect(Rect* rect);
 const char* d_name_display_resolution(DisplayResolution res);
 const char* d_name_display_mode(DisplayMode mode);
 void d_print_renderer_dims(void);

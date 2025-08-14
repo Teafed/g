@@ -13,8 +13,8 @@ SDL_Surface* create_surface(void);
 void recreate_surface(SDL_Surface** surface);
 void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
-static void blit_masked_scaled(Layer* layer, ImageData* source, SDL_Rect src_rect,
-                              SDL_Rect dest_screen_rect, uint8_t draw_color,
+static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
+                              Rect dest_screen_rect, uint8_t draw_color,
                               uint8_t size, int clip_left, int clip_top);
 
 // CORE FUNCTIONS
@@ -30,9 +30,9 @@ bool renderer_init(float scale_factor) {
    }
    
    g_renderer.display_resolution = RES_VGA;
-   g_renderer.game_coords = (SDL_Rect){ 0, 0, GAME_WIDTH_VGA, GAME_HEIGHT_VGA };
+   g_renderer.game_coords = (Rect){ 0, 0, GAME_WIDTH_VGA, GAME_HEIGHT_VGA };
    
-   g_renderer.screen = (SDL_Rect){ 0, 0, (int)(GAME_WIDTH_FWVGA * scale_factor), (int)(GAME_HEIGHT_FWVGA * scale_factor) };
+   g_renderer.screen = (Rect){ 0, 0, (int)(GAME_WIDTH_FWVGA * scale_factor), (int)(GAME_HEIGHT_FWVGA * scale_factor) };
    g_renderer.scale_factor = scale_factor;
    calculate_viewport();
    
@@ -171,7 +171,8 @@ void renderer_present(void) {
       } else {
          // TODO: the stretch doesn't actually show...
          // stretch existing composite for now
-         SDL_Rect stretch_rect = {0, 0, g_renderer.screen.w, g_renderer.screen.h};
+         Rect stretch_rect = {0, 0, g_renderer.screen.w, g_renderer.screen.h};
+         // d_log("%s", d_name_rect(&stretch_rect));
          SDL_BlitScaled(g_renderer.composite_surface, NULL, 
                         g_renderer.window_surface, &stretch_rect);
          SDL_UpdateWindowSurface(g_renderer.window);
@@ -210,11 +211,11 @@ void renderer_handle_window_event(SDL_Event* event) {
    if (event->type != SDL_WINDOWEVENT) return;
    
    switch (event->window.event) {
-   case SDL_WINDOWEVENT_RESIZED:
+   case SDL_WINDOWEVENT_SIZE_CHANGED:
       g_renderer.screen.w = event->window.data1;
       g_renderer.screen.h = event->window.data2;
       break;
-   case SDL_WINDOWEVENT_SIZE_CHANGED:
+   case SDL_WINDOWEVENT_RESIZED:
       if (!g_renderer.resize_in_progress) {
          g_renderer.resize_in_progress = true;
          g_renderer.resize_start_time = timing_get_game_time_ms();
@@ -432,18 +433,18 @@ uint8_t renderer_get_layer_size(LayerHandle handle) {
 }
 
 // DRAWING FUNCTIONS
-void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_rect,
+void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
                           int dest_x, int dest_y, uint8_t draw_color) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || !source) return;
 
-   SDL_Rect dest_game_rect = {
+   Rect dest_game_rect = {
       dest_x,
       dest_y,
       src_rect.w * layer->size,
       src_rect.h * layer->size
    };
-   SDL_Rect dest_screen_rect = dest_game_rect;
+   Rect dest_screen_rect = dest_game_rect;
    renderer_convert_game_to_screen(&dest_screen_rect);
    
    // bounds checking once
@@ -482,12 +483,12 @@ void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) 
          return;
       }
    }
-   SDL_Rect pixel = { x, y, layer->size, layer->size };
+   Rect pixel = { x, y, layer->size, layer->size };
    renderer_convert_game_to_screen(&pixel);
    SDL_FillRect(layer->surface, &pixel, color_index);
 }
 
-void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect rect, uint8_t color_index) {
+void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
@@ -501,7 +502,7 @@ void renderer_draw_fill(LayerHandle handle, uint8_t color_index) {
    SDL_FillRect(layer->surface, NULL, color_index);
 }
 
-void renderer_draw_rect(LayerHandle handle, SDL_Rect rect, uint8_t color_index) {
+void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
@@ -521,7 +522,7 @@ void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, i
    int tile_x = sheet_index % font->image_w;
    int tile_y = sheet_index / font->image_w;
    
-   SDL_Rect src_rect = {
+   Rect src_rect = {
       tile_x * font->tile_w,
       tile_y * font->tile_h,
       font->tile_w,
@@ -553,7 +554,7 @@ void renderer_draw_string(LayerHandle handle, FontType font_type, const char* st
       int tile_x = sheet_index % font->image_w;
       int tile_y = sheet_index / font->image_w;
 
-      SDL_Rect src_rect = {
+      Rect src_rect = {
          tile_x * font->tile_w,
          tile_y * font->tile_h,
          font->tile_w,
@@ -582,7 +583,7 @@ void renderer_draw_system_quit(uint8_t duration_held) {
    else if (duration_held < 192) color = 1;
    
    renderer_draw_string(handle, FONT_ACER_8_8, "Quitting game...", 1, 1, color);
-   SDL_Rect asdf = {200, 200, 100, 100};
+   Rect asdf = {200, 200, 100, 100};
    renderer_draw_rect(handle, asdf, 11);
 }
 
@@ -592,7 +593,7 @@ SDL_Surface* renderer_get_layer_surface(LayerHandle handle) {
    return layer ? layer->surface : NULL;
 }
 
-void renderer_convert_game_to_screen(SDL_Rect* rect) {
+void renderer_convert_game_to_screen(Rect* rect) {
    // convert game coords into screen
    // d_log("");
    // d_logl("converted %s to ", d_name_rect(rect));
@@ -642,7 +643,7 @@ void renderer_convert_game_to_screen(SDL_Rect* rect) {
 }
 
 // TODO: change this as well
-void renderer_convert_screen_to_game(SDL_Rect* rect) {
+void renderer_convert_screen_to_game(Rect* rect) {
    // convert screen coords into game coords
    // d_log("");
    // d_logl("converted %s to ", d_name_rect(rect));
@@ -709,7 +710,7 @@ static void calculate_viewport(void) {
    
    switch (effective_resize_mode) {
    case RESIZE_FIT:
-      SDL_Rect result = { 0 };
+      Rect result = { 0 };
       float fixed_aspect = (float)g_renderer.game_coords.w / g_renderer.game_coords.h;
       float window_aspect = (float)g_renderer.screen.w / g_renderer.screen.h;
 
@@ -805,8 +806,8 @@ void resize_all_surfaces(void) {
    return;
 }
 
-static void blit_masked_scaled(Layer* layer, ImageData* source, SDL_Rect src_rect,
-                              SDL_Rect dest_screen_rect, uint8_t draw_color,
+static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
+                              Rect dest_screen_rect, uint8_t draw_color,
                               uint8_t size, int clip_left, int clip_top) {
    // say("dest_screen_rect = %s\n", d_name_rect(&dest_screen_rect));
    uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;

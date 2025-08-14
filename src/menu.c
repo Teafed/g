@@ -238,7 +238,7 @@ void menu_draw_menu(Menu* menu) { // TODO: customize
       bool is_selected = (menu->selected_option[0] == i); // TODO: highlighting for both players
       if (is_selected) {
          // selection box
-         SDL_Rect select_rect = {title_x - 5, y - 3, line_width, line_height};
+         Rect select_rect = {title_x - 5, y - 3, line_width, line_height};
          renderer_draw_rect(menu->layer_handle, select_rect, 13); // red-dark
          // selected text color
          color = 8; // brown-light

@@ -79,9 +79,9 @@ const char* d_name_display_mode(DisplayMode mode) {
    return (mode >= 0 && mode < 3) ? names[mode] : "UNKNOWN!";
 }
 
-const char* d_name_rect(SDL_Rect* rect) {
+const char* d_name_rect(Rect* rect) {
    // NOTE can't call d_name_rect twice in one printf function, otherwise both arguments will output the same. alternate:
-   // void d_name_rect(SDL_Rect* rect, char* out, size_t size) {
+   // void d_name_rect(Rect* rect, char* out, size_t size) {
    //    snprintf(out, size, "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
    // }
    // just declare two char buffers before calling
@@ -91,22 +91,25 @@ const char* d_name_rect(SDL_Rect* rect) {
 }
 
 void d_print_renderer_dims(void) {
-   d_log("-------------");
-   d_log("RENDERER DIMS");
-   d_var(g_renderer.window_surface->w);
-   d_var(g_renderer.window_surface->h);
-   d_var(g_renderer.composite_surface->w);
-   d_var(g_renderer.composite_surface->h);
-   d_log("display_resolution = %s", d_name_display_resolution(g_renderer.display_resolution));
-   d_log("viewport =           %s", d_name_rect(&g_renderer.viewport));
-   d_log("screen =             %s", d_name_rect(&g_renderer.screen));
-   d_log("display_mode =       %s", d_name_display_mode(g_renderer.display_mode));
-   d_var(g_renderer.last_windowed_width);
-   d_var(g_renderer.last_windowed_height);
-   for (int i = 0; i < g_renderer.layer_count; i++) {
-      d_log("layer %d:", i);
-      d_var(g_renderer.layers[i].surface->w);
-      d_var(g_renderer.layers[i].surface->h);
+   const RendererState* g_renderer = renderer_get_debug_state();
+   Rect viewport = g_renderer->viewport;
+   Rect screen = g_renderer->screen;
+   d_log("");
+   d_logl("---------\n");
+   d_logl("RENDERER DIMS\n");
+   d_var(g_renderer->window_surface->w);
+   d_var(g_renderer->window_surface->h);
+   d_var(g_renderer->composite_surface->w);
+   d_var(g_renderer->composite_surface->h);
+   d_logl("display_resolution = %s", d_name_display_resolution(g_renderer->display_resolution)); d_logl("\n");
+   d_logl("viewport =           %s", d_name_rect(&viewport)); d_logl("\n");
+   d_logl("screen =             %s", d_name_rect(&screen)); d_logl("\n");
+   d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
+   d_var(g_renderer->last_windowed_width);
+   d_var(g_renderer->last_windowed_height);
+   for (int i = 0; i < g_renderer->layer_count; i++) {
+      d_logl("layer %d: w = %d, h = %d", i, g_renderer->layers[i].surface->w, g_renderer->layers[i].surface->h);
+      d_logl("\n");
    }
 }
 

@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define Rect SDL_Rect
+
 typedef uint32_t LayerHandle;
 #define INVALID_LAYER 0
 #define PALETTE_SIZE 36
@@ -62,10 +64,10 @@ typedef struct {
    SDL_Surface* composite_surface;  // truecolor surface, composite of all layers
    
    DisplayResolution display_resolution;
-   SDL_Rect game_coords;            // (game coords) height and width based on DisplayResolution
+   Rect game_coords;            // (game coords) height and width based on DisplayResolution
    
-   SDL_Rect viewport;               // (window coords) rectangle for game area
-   SDL_Rect screen;                 // (window coords) rectangle for window screen
+   Rect viewport;               // (window coords) rectangle for game area
+   Rect screen;                 // (window coords) rectangle for window screen
    float scale_factor;
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
@@ -155,10 +157,10 @@ void renderer_set_layer_size(LayerHandle handle, uint8_t size);
 uint8_t renderer_get_layer_size(LayerHandle handle);
 
 // drawing functions
-void renderer_blit_masked(LayerHandle handle, ImageData* source, SDL_Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);
+void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index); // affected by layer.size
-void renderer_draw_rect_raw(LayerHandle handle, SDL_Rect rect, uint8_t color_index);
-void renderer_draw_rect(LayerHandle handle, SDL_Rect rect, uint8_t color_index);
+void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index);
+void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index);
 void renderer_draw_fill(LayerHandle handle, uint8_t color_index);
 #include "file.h"
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index); // affected by layer.size
@@ -167,8 +169,8 @@ void renderer_draw_system_quit(uint8_t duration_held);
 
 // utility functions
 SDL_Surface* renderer_get_layer_surface(LayerHandle handle);
-void renderer_convert_game_to_screen(SDL_Rect* rect);
-void renderer_convert_screen_to_game(SDL_Rect* rect);
+void renderer_convert_game_to_screen(Rect* rect);
+void renderer_convert_screen_to_game(Rect* rect);
 void renderer_get_screen_dimensions(int* width, int* height);
 void renderer_get_viewport_dimensions(int* width, int* height);
 void renderer_get_game_dimensions(int* width, int* height);

@@ -217,7 +217,7 @@ int scene_get_stack_depth(void) {
 
 LayerHandle layer_bg, layer_test, layer_sized;
 int dimx = 0, dimy = 0;
-SDL_Rect moving_box = {0, 0, 100, 100};
+Rect moving_box = {0, 0, 100, 100};
 bool x_forward = true, y_forward = true;
 void title_scene_init(void) {
    layer_bg = renderer_create_layer(true);
@@ -274,13 +274,13 @@ void title_scene_render(void) {
    renderer_draw_rect(layer_test, moving_box, 15);
    
    { // draw bg & borders
-      SDL_Rect bg = {0, 0, dimx, dimy};
+      Rect bg = {0, 0, dimx, dimy};
       renderer_draw_rect(layer_bg, bg, 1);
       
-      SDL_Rect border1 = {0, 0, 640, 1};
-      SDL_Rect border2 = {0, 0, 1, 480};
-      SDL_Rect border3 = {0, 479, 640, 1};
-      SDL_Rect border4 = {639, 0, 1, 480};
+      Rect border1 = {0, 0, 640, 1};
+      Rect border2 = {0, 0, 1, 480};
+      Rect border3 = {0, 479, 640, 1};
+      Rect border4 = {639, 0, 1, 480};
          
       renderer_draw_rect(layer_test, border1, 9);
       renderer_draw_rect(layer_test, border2, 9);
@@ -298,8 +298,8 @@ void title_scene_render(void) {
       const char* line4 = "* ...";
       const char* line5 = "* Where am I...? I'm scared... Please...";
       const char* line6 = "  I don't want to be a test string...";
-      SDL_Rect line1rect = {20, 207, 136, 9};
-      SDL_Rect line2rect = {20, 217, 144, 9};
+      Rect line1rect = {20, 207, 136, 9};
+      Rect line2rect = {20, 217, 144, 9};
       renderer_draw_rect(layer_test, line1rect, 14);
       renderer_draw_rect(layer_test, line2rect, 17);
       renderer_draw_string(layer_test, font, line1, 20, 208, 4);
@@ -311,15 +311,15 @@ void title_scene_render(void) {
       renderer_draw_string(layer_test, font2, line6, 190, 123, 13);
 
       for (int i = 0; i < 25; i++) {
-         renderer_draw_rect(layer_test, (SDL_Rect){10 + (i * 8), 10, 8, 8}, (i % 2 == 0) ? 21 : 18);
-         renderer_draw_rect(layer_test, (SDL_Rect){10 + (i * 8), 20, 8, 8}, (i % 2 == 0) ? 18 : 21);
+         renderer_draw_rect(layer_test, (Rect){10 + (i * 8), 10, 8, 8}, (i % 2 == 0) ? 21 : 18);
+         renderer_draw_rect(layer_test, (Rect){10 + (i * 8), 20, 8, 8}, (i % 2 == 0) ? 18 : 21);
       }
       renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
       renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
 
       for (int i = 0; i < 25; i++) {
-         renderer_draw_rect(layer_sized, (SDL_Rect){10 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
-         renderer_draw_rect(layer_sized, (SDL_Rect){10 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
+         renderer_draw_rect(layer_sized, (Rect){10 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
+         renderer_draw_rect(layer_sized, (Rect){10 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
       }
       renderer_draw_string(layer_sized, font, "This is the title screen.", 10, 30, 4);
       renderer_draw_string(layer_sized, font, "   Press [j] to start.", 10, 50, 4);
