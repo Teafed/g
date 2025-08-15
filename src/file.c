@@ -13,6 +13,7 @@
 
 static ImageData* load_bitmap(const char* fname);
 static int parse_sheet_filename(const char* fname, char* type, char* name, int* tile_w, int* tile_h);
+static void cleanup_sheets(FontArray* fonts, SpriteArray* sprites);
 static void verify_image_colors(ImageData* image_data);
 
 int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
@@ -22,6 +23,7 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    }   
 
    // initialize arrays
+   // TODO: decide on and define constants for capacity
    sprites->sprites = malloc(sizeof(Sprite) * 16);
    sprites->sprite_count = 0;
    sprites->sprite_capacity = 16;
@@ -33,7 +35,8 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    fonts->font_count = 0;
    fonts->font_capacity = 8;
    if (d_dne(fonts->fonts)) {
-      free(fonts->fonts);
+      free(sprites->sprites);
+      sprites->sprites = NULL;
       return 0;
    }
    
@@ -46,8 +49,7 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    find_handle = FindFirstFile(search_path, &find_data);
    if (find_handle == INVALID_HANDLE_VALUE) {
       d_err("no bitmap files found in %s", DIR_SHEETS);
-      free(sprites->sprites);
-      free(fonts->fonts);
+      cleanup_sheets(fonts, sprites);
       return 0;
    }
    
@@ -59,89 +61,103 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
       char type[64], name[128];
       int tile_w, tile_h;
       
-      if (parse_sheet_filename(find_data.cFileName, type, name, &tile_w, &tile_h)) {
-         ImageData* image_data = load_bitmap(full_path);
-         if (!image_data) {
-            d_log("failed to load bitmap: %s", find_data.cFileName);
-            continue;
-         }
-
-         // calculate image dimensions in tiles
-         int image_w = image_data->width / tile_w;
-         int image_h = image_data->height / tile_h;
-         
-         // check for partial tiles and warn
-         if (image_data->width % tile_w != 0 || image_data->height % tile_h != 0) {
-            d_log("WARNING: %s has partial tiles - truncating to %dx%d tiles", 
-                   find_data.cFileName, image_w, image_h);
-            // TODO: modify ImageData to remove partial tiles
-         }
-
-         verify_image_colors(image_data); // TODO: finish this pls
-         
-         // determine resource type and add to appropriate array
-         if (strcmp(type, "font") == 0) {
-            // resize font array if needed
-            if (fonts->font_count >= fonts->font_capacity) {
-               fonts->font_capacity *= 2;
-               Font* new_fonts = realloc(fonts->fonts, sizeof(Font) * fonts->font_capacity);
-               if (!new_fonts) {
-                  free(image_data);
-                  continue;
-               }
-               fonts->fonts = new_fonts;
-            }
-            
-            Font* font = &fonts->fonts[fonts->font_count];
-            font->fname = malloc(strlen(find_data.cFileName) + 1);
-            if (!font->fname) {
-               free(image_data);
-               continue;
-            }
-            strcpy((char*)font->fname, find_data.cFileName);
-            font->tile_w = tile_w;
-            font->tile_h = tile_h;
-            font->image_w = image_w;
-            font->image_h = image_h;
-            font->data = image_data;
-            font->ascii_start = 33; // fonts start at '!'
-            
-            fonts->font_count++;
-            
-         } else if (strcmp(type, "sprite") == 0) {
-            // resize sprite array if needed
-            if (sprites->sprite_count >= sprites->sprite_capacity) {
-               sprites->sprite_capacity *= 2;
-               Sprite* new_sprites = realloc(sprites->sprites, sizeof(Sprite) * sprites->sprite_capacity);
-               if (!new_sprites) {
-                  free(image_data);
-                  continue;
-               }
-               sprites->sprites = new_sprites;
-            }
-            
-            Sprite* sprite = &sprites->sprites[sprites->sprite_count];
-            sprite->fname = malloc(strlen(find_data.cFileName) + 1);
-            if (!sprite->fname) {
-               free(image_data);
-               continue;
-            }
-            strcpy((char*)sprite->fname, find_data.cFileName);
-            strcpy(sprite->name, name); // store the parsed name for lookups
-            sprite->tile_w = tile_w;
-            sprite->tile_h = tile_h;
-            sprite->image_w = image_w;
-            sprite->image_h = image_h;
-            sprite->data = image_data;
-            
-            sprites->sprite_count++;
-            
-         } else {
-            d_log("unknown resource type '%s' in file %s", type, find_data.cFileName);
-            free(image_data);
-         }
+      if (!parse_sheet_filename(find_data.cFileName, type, name, &tile_w, &tile_h)) {
+         d_log("couldn't parse filename: %s", find_data.cFileName);
+         continue;
       }
       
+      ImageData* image_data = load_bitmap(full_path);
+      if (d_dne(image_data)) {
+         d_log("failed to load bitmap: %s", find_data.cFileName);
+         continue;
+      }
+      
+      // calculate image dimensions in tiles
+      int image_w = image_data->width / tile_w;
+      int image_h = image_data->height / tile_h;
+      
+      // check for partial tiles and warn
+      if (image_data->width % tile_w != 0 || image_data->height % tile_h != 0) {
+         d_log("WARNING: %s has partial tiles - truncating to %dx%d tiles", 
+                find_data.cFileName, image_w, image_h);
+         d_logl("      (not implemented yet)\n");
+         // TODO: modify ImageData to remove partial tiles
+      }
+
+      verify_image_colors(image_data); // TODO: finish this pls
+      
+      if (strcmp(type, "font") == 0) {
+         // resize font array if needed
+         if (fonts->font_count >= fonts->font_capacity) {
+            fonts->font_capacity *= 2;
+            Font* new_fonts = realloc(fonts->fonts, sizeof(Font) * fonts->font_capacity);
+            if (d_dne(new_fonts)) {
+               d_err("couldn't resize font array");
+               free(image_data);
+               FindClose(find_handle);
+               cleanup_sheets(fonts, sprites);
+               return 0;
+            }
+            fonts->fonts = new_fonts;
+         }
+         
+         Font* font = &fonts->fonts[fonts->font_count];
+         font->fname = malloc(strlen(find_data.cFileName) + 1);
+         if (d_dne(font->fname)) {
+            d_err("couldn't allocate font filename");
+            free(image_data);
+            FindClose(find_handle);
+            cleanup_sheets(fonts, sprites);
+            return 0;
+         }
+         strcpy((char*)font->fname, find_data.cFileName);
+         font->tile_w = tile_w;
+         font->tile_h = tile_h;
+         font->image_w = image_w;
+         font->image_h = image_h;
+         font->data = image_data;
+         font->ascii_start = 33; // fonts start at '!'
+         
+         fonts->font_count++;
+         
+      } else if (strcmp(type, "sprite") == 0) {
+         // resize sprite array if needed
+         if (sprites->sprite_count >= sprites->sprite_capacity) {
+            sprites->sprite_capacity *= 2;
+            Sprite* new_sprites = realloc(sprites->sprites, sizeof(Sprite) * sprites->sprite_capacity);
+            if (!new_sprites) {
+               d_err("couldn't resize sprite array");
+               free(image_data);
+               FindClose(find_handle);
+               cleanup_sheets(fonts, sprites);
+               return 0;
+            }
+            sprites->sprites = new_sprites;
+         }
+         
+         Sprite* sprite = &sprites->sprites[sprites->sprite_count];
+         sprite->fname = malloc(strlen(find_data.cFileName) + 1);
+         if (d_dne(sprite->fname)) {
+            d_err("couldn't allocate sprite filename");
+            free(image_data);
+            FindClose(find_handle);
+            cleanup_sheets(fonts, sprites);
+            return 0;
+         }
+         strcpy((char*)sprite->fname, find_data.cFileName);
+         sprite->tile_w = tile_w;
+         sprite->tile_h = tile_h;
+         sprite->image_w = image_w;
+         sprite->image_h = image_h;
+         sprite->data = image_data;
+         strcpy(sprite->name, name); // store the parsed name for lookups
+         
+         sprites->sprite_count++;
+         
+      } else {
+         d_log("unknown resource type '%s' in file %s", type, find_data.cFileName);
+         free(image_data);
+      }    
    } while (FindNextFile(find_handle, &find_data));
    
    FindClose(find_handle);
@@ -150,8 +166,7 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    DIR* dir = opendir(DIR_SHEETS);
    if (d_dne(dir)) {
       d_log("could not open directory: %s", DIR_SHEETS);
-      free(sprites->sprites);
-      free(fonts->fonts);
+      cleanup_sheets(fonts, sprites);
       return 0;
    }
    
@@ -167,88 +182,103 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
       char type[64], name[128];
       int tile_w, tile_h;
       
-      if (parse_sheet_filename(entry->d_name, type, name, &tile_w, &tile_h)) {
-         
-         ImageData* image_data = load_bitmap(full_path);
-         if (d_dne(image_data)) {
-            d_log("failed to load bitmap: %s", entry->d_name);
-            continue;
-         }
-
-         // calculate image dimensions in tiles
-         int image_w = image_data->width / tile_w;
-         int image_h = image_data->height / tile_h;
-         
-         // check for partial tiles and warn
-         if (image_data->width % tile_w != 0 || image_data->height % tile_h != 0) {
-            d_log("WARNING: %s has partial tiles - truncating to %dx%d tiles", 
-                   entry->d_name, image_w, image_h);
-            // TODO: modify ImageData to remove partial tiles
-         }
-         
-         verify_image_colors(image_data); // TODO: finish this pls
-         
-         // determine resource type and add to appropriate array
-         if (strcmp(type, "font") == 0) {
-            // resize font array if needed
-            if (fonts->font_count >= fonts->font_capacity) {
-               fonts->font_capacity *= 2;
-               Font* new_fonts = realloc(fonts->fonts, sizeof(Font) * fonts->font_capacity);
-               if (!new_fonts) {
-                  free(image_data);
-                  continue;
-               }
-               fonts->fonts = new_fonts;
-            }
-            
-            Font* font = &fonts->fonts[fonts->font_count];
-            font->fname = malloc(strlen(entry->d_name) + 1);
-            if (!font->fname) {
+      if (!parse_sheet_filename(entry->d_name, type, name, &tile_w, &tile_h)) {
+         d_log("couldn't parse filename: %s", entry->d_name);
+         continue;
+      }
+      
+      ImageData* image_data = load_bitmap(full_path);
+      if (d_dne(image_data)) {
+         d_log("failed to load bitmap: %s", entry->d_name);
+         continue;
+      }
+      
+      // calculate image dimensions in tiles
+      int image_w = image_data->width / tile_w;
+      int image_h = image_data->height / tile_h;
+      
+      // check for partial tiles and warn
+      if (image_data->width % tile_w != 0 || image_data->height % tile_h != 0) {
+         d_log("WARNING: %s has partial tiles - truncating to %dx%d tiles", 
+                entry->d_name, image_w, image_h);
+         d_logl("      (not implemented yet)\n");
+         // TODO: modify ImageData to remove partial tiles
+      }
+      
+      verify_image_colors(image_data); // TODO: finish this pls
+      
+      // determine resource type and add to appropriate array
+      if (strcmp(type, "font") == 0) {
+         // resize font array if needed
+         if (fonts->font_count >= fonts->font_capacity) {
+            fonts->font_capacity *= 2;
+            Font* new_fonts = realloc(fonts->fonts, sizeof(Font) * fonts->font_capacity);
+            if (d_dne(new_fonts)) {
+               d_err("couldn't resize font array");
                free(image_data);
-               continue;
+               closedir(dir);
+               cleanup_sheets(fonts, sprites);
+               return 0;
             }
-            strcpy((char*)font->fname, entry->d_name);
-            font->tile_w = tile_w;
-            font->tile_h = tile_h;
-            font->image_w = image_w;
-            font->image_h = image_h;
-            font->data = image_data;
-            font->ascii_start = 33; // fonts start at '!'
-            
-            fonts->font_count++;
-            
-         } else if (strcmp(type, "sprite") == 0) {
-            // resize sprite array if needed
-            if (sprites->sprite_count >= sprites->sprite_capacity) {
-               sprites->sprite_capacity *= 2;
-               Sprite* new_sprites = realloc(sprites->sprites, sizeof(Sprite) * sprites->sprite_capacity);
-               if (!new_sprites) {
-                  free(image_data);
-                  continue;
-               }
-               sprites->sprites = new_sprites;
-            }
-            
-            Sprite* sprite = &sprites->sprites[sprites->sprite_count];
-            sprite->fname = malloc(strlen(entry->d_name) + 1);
-            if (!sprite->fname) {
-               free(image_data);
-               continue;
-            }
-            strcpy((char*)sprite->fname, entry->d_name);
-            strcpy(sprite->name, name); // store the parsed name for lookups
-            sprite->tile_w = tile_w;
-            sprite->tile_h = tile_h;
-            sprite->image_w = image_w;
-            sprite->image_h = image_h;
-            sprite->data = image_data;
-            
-            sprites->sprite_count++;
-            
-         } else {
-            d_log("unknown resource type '%s' in file %s", type, entry->d_name);
+            fonts->fonts = new_fonts;
+         }
+         
+         Font* font = &fonts->fonts[fonts->font_count];
+         font->fname = malloc(strlen(entry->d_name) + 1);
+         if (d_dne(font->fname)) {
+            d_err("couldn't allocate font filename");
             free(image_data);
+            closedir(dir);
+            cleanup_sheets(fonts, sprites);
+            return 0;
          }
+         strcpy((char*)font->fname, entry->d_name);
+         font->tile_w = tile_w;
+         font->tile_h = tile_h;
+         font->image_w = image_w;
+         font->image_h = image_h;
+         font->data = image_data;
+         font->ascii_start = 33; // fonts start at '!'
+         
+         fonts->font_count++;
+         
+      } else if (strcmp(type, "sprite") == 0) {
+         // resize sprite array if needed
+         if (sprites->sprite_count >= sprites->sprite_capacity) {
+            sprites->sprite_capacity *= 2;
+            Sprite* new_sprites = realloc(sprites->sprites, sizeof(Sprite) * sprites->sprite_capacity);
+            if (d_dne(new_sprites)) {
+               d_err("couldn't resize sprite array");
+               free(image_data);
+               closedir(dir);
+               cleanup_sheets(fonts, sprites);
+               return 0;
+            }
+            sprites->sprites = new_sprites;
+         }
+         
+         Sprite* sprite = &sprites->sprites[sprites->sprite_count];
+         sprite->fname = malloc(strlen(entry->d_name) + 1);
+         if (d_dne(sprite->fname)) {
+            d_err("couldn't allocate sprite filename");
+            free(image_data);
+            closedir(dir);
+            cleanup_sheets(fonts, sprites);
+            return 0;
+         }
+         strcpy((char*)sprite->fname, entry->d_name);
+         sprite->tile_w = tile_w;
+         sprite->tile_h = tile_h;
+         sprite->image_w = image_w;
+         sprite->image_h = image_h;
+         sprite->data = image_data;
+         strcpy(sprite->name, name); // store the parsed name for lookups
+         
+         sprites->sprite_count++;
+         
+      } else {
+         d_log("unknown resource type '%s' in file %s", type, entry->d_name);
+         free(image_data);
       }
    }
    closedir(dir);
@@ -257,6 +287,13 @@ int file_load_sheets(SpriteArray* sprites, FontArray* fonts) {
    d_logv(2, "loaded %d fonts and %d sprites from %s", 
           fonts->font_count, sprites->sprite_count, DIR_SHEETS);
    return 1;
+}
+
+void file_unload_sheets(FontArray* fonts, SpriteArray* sprites) {
+   int font_count = fonts->font_count;
+   int sprite_count = sprites->sprite_count;
+   cleanup_sheets(fonts, sprites);
+   d_logv(2, "unloaded %d fonts and %d sprites", font_count, sprite_count);
 }
 
 Font* file_get_font(FontArray* font_array, FontType type) { // TODO: redo this
@@ -390,6 +427,30 @@ static int parse_sheet_filename(const char* fname, char* type, char* name, int* 
    
    free(fname_copy);
    return 1;
+}
+
+static void cleanup_sheets(FontArray* fonts, SpriteArray* sprites) {
+   if (fonts && fonts->fonts) {
+      for (int i = 0; i < fonts->font_count; i++) {
+         free((char*)fonts->fonts[i].fname);
+         free(fonts->fonts[i].data);
+      }
+      free(fonts->fonts);
+      fonts->fonts = NULL;
+      fonts->font_count = 0;
+      fonts->font_capacity = 0;
+   }
+   
+   if (sprites && sprites->sprites) {
+      for (int i = 0; i < sprites->sprite_count; i++) {
+         free((char*)sprites->sprites[i].fname);
+         free(sprites->sprites[i].data);
+      }
+      free(sprites->sprites);
+      sprites->sprites = NULL;
+      sprites->sprite_count = 0;
+      sprites->sprite_capacity = 0;
+   }
 }
 
 static void verify_image_colors(ImageData* image_data) {

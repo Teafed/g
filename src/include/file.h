@@ -45,7 +45,7 @@ typedef struct {
    int image_w;
    int image_h;
    ImageData* data;
-   char name[128];        // parsed name from filename (e.g., "guy-run")
+   char name[128]; // parsed name from filename (e.g., "guy-run")
 } Sprite;
 
 typedef struct {
@@ -54,7 +54,8 @@ typedef struct {
    int sprite_capacity;
 } SpriteArray;
 
-int file_load_sheets(SpriteArray* sprite_array, FontArray* fonts); // called once in renderer_init()
+int file_load_sheets(SpriteArray* sprite_array, FontArray* fonts); // called once in renderer_init(), returns 0 on failure
+void file_unload_sheets(FontArray* fonts, SpriteArray* sprites);
 Font* file_get_font(FontArray* font_array, FontType type);
 Sprite* file_get_sprite(SpriteArray* sprites, const char* sprite_name);
 
