@@ -22,6 +22,7 @@ bool game_init(float scale_factor, int framerate);
 void game_update(float delta_time);
 void game_render(void);
 void game_handle_events(float delta_time);
+void game_escape(uint32_t timer);
 void game_shutdown(void);
 bool game_handle_flags(int argc, char *argv[], int* logging_mode, float* scale_factor, int* framerate);
 
@@ -66,7 +67,7 @@ bool game_init(float scale_factor, int framerate) {
    scene_init();
 
    g_game.state = GAME_RUNNING;
-   d_log("Initialized :)");
+   d_log("Initialized :)\n");
    
    return true;
 }
@@ -83,10 +84,10 @@ void game_handle_events(float delta_time) {
          renderer_handle_window_event(&e);
          break;
       case SDL_APP_LOWMEMORY:
-         d_log("THE GAME IS LOW ON MEMORY!!!!!!!!\n");
+         d_log("THE GAME IS LOW ON MEMORY!!!!!!!!");
          break;
       case SDL_FINGERDOWN:
-         d_log("hehe :)\n");
+         d_log("hehe :)");
          game_shutdown();
          break;
       }
@@ -102,6 +103,11 @@ void game_update(float delta_time) {
 
 void game_render(void) {
    renderer_present();
+}
+
+void game_escape(uint32_t timer) {            
+   if (timer >= 255) game_shutdown();
+   else renderer_draw_system_quit((uint8_t)timer);
 }
 
 void game_shutdown(void) {

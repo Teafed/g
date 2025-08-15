@@ -31,6 +31,7 @@ void input_init(void) {
    input_setup_handlers();
 }
 
+extern void game_escape(uint32_t timer);
 void input_update(float delta_time) {
    g_input.delta_time = delta_time;
    g_input.frame_count++;
@@ -59,13 +60,8 @@ void input_update(float delta_time) {
          // if (currently_pressed) d_log("[%d]: %s", dev, d_name_input_event(event));
          if (event == INPUT_QUIT) {
             if (state->held) {
-               // d_var(state->duration);
-               int wait = (state->duration * 1000.0f);
-               if (wait >= 255) game_shutdown();
-               // renderer_draw_system_quit((uint8_t)wait);
-            }
-            else if (state->released) {
-               // renderer_draw_system_quit(0);
+               uint32_t timer = (uint32_t)(state->duration * 1000.0f);
+               game_escape(timer);
             }
          }
          
