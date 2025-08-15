@@ -7,11 +7,13 @@
 
 static RendererState g_renderer = { 0 };
 
+static void draw_system_header(int* x, int* y);
+static void draw_system_data(SystemData data, int* x, int* y);
 static void calculate_viewport(void);
 static Layer* find_layer(LayerHandle handle);
-SDL_Surface* create_surface(void);
-void recreate_surface(SDL_Surface** surface);
-void resize_all_surfaces(void);
+static SDL_Surface* create_layer_surface(void);
+static void recreate_layer_surface(SDL_Surface** surface);
+static void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
 static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
                               Rect dest_screen_rect, uint8_t draw_color,
@@ -49,7 +51,7 @@ bool renderer_init(float scale_factor) {
    g_renderer.transparent_color_index = PALETTE_TRANSPARENT;
    
    g_renderer.window = SDL_CreateWindow(
-      "teafeds cool game",
+      WINDOW_TITLE,
       SDL_WINDOWPOS_CENTERED,
       SDL_WINDOWPOS_CENTERED,
       g_renderer.screen.w,
@@ -103,8 +105,12 @@ bool renderer_init(float scale_factor) {
       return false;
    }
    g_renderer.system_layer_handle = system_layer;
-   renderer_set_layer_visible(g_renderer.system_layer_handle, false);
-   renderer_set_layer_draw_outisde(g_renderer.system_layer_handle, true);
+   for (int i = 0; i < SYS_MAX; i++) {
+      g_renderer.system_layer_data[i] = false;
+   }
+   
+   renderer_set_layer_size(g_renderer.system_layer_handle, 1);
+   renderer_toggle_system_data(SYS_CURRENT_FPS, true);
    
    return true;
 }
@@ -195,7 +201,21 @@ void renderer_present(void) {
    // draw system layer
    Layer* system_layer = find_layer(g_renderer.system_layer_handle);
    if (system_layer->visible) {
-      SDL_SetSurfaceAlphaMod(system_layer->surface, system_layer->opacity);
+      /* header */
+      int x = 0, y = 0;
+      renderer_get_top_left_coords(&x, &y);
+      x += (1 * system_layer->size);
+      y += (1 * system_layer->size);
+      draw_system_header(&x, &y);
+      y += (8 * system_layer->size);
+
+      /* system data */
+      for (int i = 0; i < SYS_MAX; i++) {
+         if (g_renderer.system_layer_data[i]) {
+            draw_system_data(i, &x, &y);
+         }
+      }
+      
       SDL_BlitSurface(system_layer->surface, NULL, g_renderer.composite_surface, NULL);
    }
    
@@ -315,12 +335,12 @@ LayerHandle renderer_create_layer(bool can_draw_outside) {
    // find next available slot
    Layer* layer = &g_renderer.layers[g_renderer.layer_count];
    
-   layer->surface = create_surface();
+   layer->surface = create_layer_surface();
    if (d_dne(layer->surface)) return INVALID_LAYER;
    
    layer->handle = g_renderer.next_layer_handle++;
    layer->can_draw_outside_viewport = can_draw_outside;
-   layer->size = 1;
+   layer->size = 2;
    layer->visible = true;
    layer->opacity = 255;
       
@@ -470,6 +490,7 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
                       layer->size, clip_left, clip_top);
 }
 
+// TODO: align rects and pixels with layer size as well (double check pixel alignment)
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
@@ -481,6 +502,14 @@ void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) 
    Rect pixel = { x, y, layer->size, layer->size };
    renderer_convert_game_to_screen(&pixel);
    SDL_FillRect(layer->surface, &pixel, color_index);
+}
+
+void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
+   Layer* layer = find_layer(handle);
+   if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
+   
+   renderer_convert_game_to_screen(&rect);
+   SDL_FillRect(layer->surface, &rect, color_index);
 }
 
 void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index) {
@@ -495,14 +524,6 @@ void renderer_draw_fill(LayerHandle handle, uint8_t color_index) {
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
    SDL_FillRect(layer->surface, NULL, color_index);
-}
-
-void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
-   Layer* layer = find_layer(handle);
-   if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
-   
-   renderer_convert_game_to_screen(&rect);
-   SDL_FillRect(layer->surface, &rect, color_index);
 }
 
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index) {
@@ -563,14 +584,51 @@ void renderer_draw_string(LayerHandle handle, FontType font_type, const char* st
    }
 }
 
-// everything is messed up here
+// SYSTEM LAYER
+void renderer_toggle_system_data(SystemData data, bool display) {
+   if (data < 0 || data >= SYS_MAX) return;
+   display ? (g_renderer.system_layer_data[data] = true) : (g_renderer.system_layer_data[data] = false);
+   d_logv(2, "%s display set to %s", d_name_system_data(data), display ? "true" : "false");
+}
+
+static void draw_system_header(int* x, int* y) {
+   uint8_t color = 0; // mono-white
+   renderer_draw_string(g_renderer.system_layer_handle, FONT_SHARP_8_8, "teaf/g v0.01", *x, *y, color);
+}
+
+static void draw_system_data(SystemData data, int* x, int* y) {
+   LayerHandle handle = g_renderer.system_layer_handle;
+   // Layer* layer = find_layer(handle);
+   uint8_t size = find_layer(handle)->size;
+   FontType font = FONT_SHARP_8_8;
+   uint8_t color = 0; // mono-white
+   switch (data) {
+   case SYS_CURRENT_FPS:
+      float fps = timing_get_current_fps();
+      char buffer[128];
+      snprintf(buffer, sizeof(buffer), "%.2f fps", fps);
+      renderer_draw_string(handle, font, buffer, *x, *y, color);
+      x += (8 * size);
+      break;
+      
+   case SYS_LAYER_COUNT:
+      renderer_draw_string(handle, font, "haha weeeeee", *x, *y, color);
+      x += (8 * size);
+      
+      break;
+
+   default:
+      d_log("unhandled system data draw");
+   }
+}
+
 void renderer_draw_system_quit(uint8_t duration_held) {
    LayerHandle handle = g_renderer.system_layer_handle;
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface) return;
 
-   if (duration_held == 0) { renderer_set_layer_visible(handle, false); return; }
-   else if (!layer->visible) renderer_set_layer_visible(handle, true);
+   // if (duration_held == 0) { renderer_set_layer_visible(handle, false); return; }
+   // else if (!layer->visible) renderer_set_layer_visible(handle, true);
 
    uint8_t color = 0;
    if (duration_held < 64) color = 3;
@@ -685,6 +743,14 @@ void renderer_get_game_dimensions(int* width, int* height) {
    if (height) *height = g_renderer.game_coords.h;
 }
 
+void renderer_get_top_left_coords(int* width, int* height) {
+   // it's not perfect but close enough
+   int x_diff = (int)((float)g_renderer.viewport.x / g_renderer.scale_factor);
+   int y_diff = (int)((float)g_renderer.viewport.y / g_renderer.scale_factor);
+   if (width) *width = -x_diff;
+   if (height) *height = -y_diff;
+}
+
 float renderer_get_scale_factor(void) {
    return g_renderer.scale_factor;
 }
@@ -731,7 +797,7 @@ static void calculate_viewport(void) {
       g_renderer.viewport.y = (g_renderer.screen.h - g_renderer.viewport.h) / 2;
       break;
    }
-   d_logv(2, "viewport calculated to be %s", d_name_rect(&g_renderer.viewport));
+   d_logv(3, "viewport calculated to be %s", d_name_rect(&g_renderer.viewport));
 }
 
 static Layer* find_layer(LayerHandle handle) {
@@ -745,8 +811,7 @@ static Layer* find_layer(LayerHandle handle) {
    return NULL;
 }
 
-// only used for layers - rename?
-SDL_Surface* create_surface(void) {
+static SDL_Surface* create_layer_surface(void) {
    SDL_Surface* surface = SDL_CreateRGBSurface(0, g_renderer.screen.w, g_renderer.screen.h, 8, 0, 0, 0, 0);
    if (d_dne(surface)) {
       return NULL;
@@ -760,13 +825,12 @@ SDL_Surface* create_surface(void) {
    return surface;
 }
 
-// only used for layers - rename?
-void recreate_surface(SDL_Surface** surface) {
+static void recreate_layer_surface(SDL_Surface** surface) {
    // called if change in g_renderer.screen or transparent_color_index
    if (surface && *surface) {
       SDL_FreeSurface(*surface);
    }
-   *surface = create_surface();
+   *surface = create_layer_surface();
    if (d_dne(*surface)) {
       d_log("new surface doesn't exist");
       return;
@@ -775,7 +839,7 @@ void recreate_surface(SDL_Surface** surface) {
    // d_var((*surface)->h);
 }
 
-void resize_all_surfaces(void) {
+static void resize_all_surfaces(void) {
    int new_w, new_h;
    SDL_GetWindowSize(g_renderer.window, &new_w, &new_h);
    
@@ -792,7 +856,7 @@ void resize_all_surfaces(void) {
       for (int i = 0; i < g_renderer.layer_count; i++) {
          if (i != 0) d_logl(", %d", i);
          else d_logl(" and layer %d", i);
-         recreate_surface(&g_renderer.layers[i].surface);
+         recreate_layer_surface(&g_renderer.layers[i].surface);
       }
       d_logl("\n");
    }

@@ -90,6 +90,15 @@ const char* d_name_rect(Rect* rect) {
    return buffer;
 }
 
+const char* d_name_system_data(SystemData data) {
+   static const char* names[] = {
+      "SYS_CURRENT_FPS",
+      "SYS_LAYER_COUNT",
+      "SYS_MAX"
+   };
+   return (data >= 0 && data < SYS_MAX) ? names[data] : "UNKNOWN!";
+}
+
 void d_print_renderer_dims(void) {
    const RendererState* g_renderer = renderer_get_debug_state();
    Rect viewport = g_renderer->viewport;
@@ -115,14 +124,14 @@ void d_print_renderer_dims(void) {
 
 // FILE
 const char* d_name_font(FontType type) {
-    static const char* names[] = {
-        "font_Acer710-CGA_8x8.bmp",   // FONT_ACER_8_8
-        "font_Compis_8x16.bmp",       // FONT_COMPIS_8_16
-        "font_Sharp-PC3K_8x8.bmp",    // FONT_SHARP_8_8
-        "font_Verite_8x8.bmp",        // FONT_VERITE_8_8
-        "font_Verite_9x8.bmp"         // FONT_VERITE_9_8
-    };
-    return (type >= 0 && type < FONT_MAX) ? names[type] : "UNKNOWN!";
+   static const char* names[] = {
+      "font_Acer710-CGA_8x8.bmp",   // FONT_ACER_8_8
+      "font_Compis_8x16.bmp",       // FONT_COMPIS_8_16
+      "font_Sharp-PC3K_8x8.bmp",    // FONT_SHARP_8_8
+      "font_Verite_8x8.bmp",        // FONT_VERITE_8_8
+      "font_Verite_9x8.bmp"         // FONT_VERITE_9_8
+   };
+   return (type >= 0 && type < FONT_MAX) ? names[type] : "UNKNOWN!";
 }
 
 // TIMING

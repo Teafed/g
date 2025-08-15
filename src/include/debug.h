@@ -46,6 +46,7 @@ static inline void d__var_ptr(void* x, const char* name) {
 #define d_var(x) _Generic((x), \
    int: d__var_int, \
    unsigned int: d__var_uint, \
+   uint8_t: d__var_uint, \
    float: d__var_float, \
    double: d__var_float, \
    char: d__var_char, \
@@ -58,6 +59,7 @@ static inline void d__var_ptr(void* x, const char* name) {
 const char* d_name_rect(Rect* rect);
 const char* d_name_display_resolution(DisplayResolution res);
 const char* d_name_display_mode(DisplayMode mode);
+const char* d_name_system_data(SystemData data);
 void d_print_renderer_dims(void);
 
 // FILE

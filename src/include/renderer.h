@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #define Rect SDL_Rect
+#define WINDOW_TITLE "teafeds cool game"
 
 typedef uint32_t LayerHandle;
 #define INVALID_LAYER 0
@@ -35,6 +36,13 @@ typedef enum {
    DISPLAY_FULLSCREEN
 } DisplayMode;
 
+// TODO: is this the best place for this?
+typedef enum {
+   SYS_CURRENT_FPS, // -> timing_get_current_fps()
+   SYS_LAYER_COUNT, // -> g_renderer
+   SYS_MAX
+} SystemData;
+
 typedef struct {
    LayerHandle handle;
    bool can_draw_outside_viewport;
@@ -56,6 +64,7 @@ typedef struct {
    // 
 // } LayerGroup;
 
+// TODO: look into SDL_BlitMap in surface for fast blit mapping
 #include "file.h"
 typedef struct {
    bool initialized;
@@ -64,10 +73,10 @@ typedef struct {
    SDL_Surface* composite_surface;  // truecolor surface, composite of all layers
    
    DisplayResolution display_resolution;
-   Rect game_coords;            // (game coords) height and width based on DisplayResolution
+   Rect game_coords;                // (game coords) height and width based on DisplayResolution
    
-   Rect viewport;               // (window coords) rectangle for game area
-   Rect screen;                 // (window coords) rectangle for window screen
+   Rect viewport;                   // (window coords) rectangle for game area
+   Rect screen;                     // (window coords) rectangle for window screen
    float scale_factor;
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
@@ -82,6 +91,7 @@ typedef struct {
    int layer_capacity;
    LayerHandle next_layer_handle;
    LayerHandle system_layer_handle;
+   bool system_layer_data[SYS_MAX];
 
    SpriteArray sprite_array;
    FontArray font_array;
@@ -90,6 +100,7 @@ typedef struct {
    uint8_t transparent_color_index;
 } RendererState;
 
+// TODO: palette("red-ivwy") returns uint8_t 11
 static const uint32_t palette[PALETTE_SIZE] = {
    // teaf-v5
    0xFEFEFDFF,  // 0  - mono-white
@@ -145,6 +156,7 @@ void renderer_set_resize_mode(ResizeMode mode);
 void renderer_set_clear_color(uint8_t color_index);
 
 // layer management
+/* defaults: size = 2, visible = true, opacity = 255 */
 LayerHandle renderer_create_layer(bool can_draw_outside);
 void renderer_destroy_layer(LayerHandle handle);
 void renderer_set_layer_draw_outisde(LayerHandle handle, bool can_draw);
@@ -158,13 +170,16 @@ uint8_t renderer_get_layer_size(LayerHandle handle);
 
 // drawing functions
 void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);
-void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index); // affected by layer.size
-void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index);
+void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index);
 void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index);
+void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index);
 void renderer_draw_fill(LayerHandle handle, uint8_t color_index);
 #include "file.h"
 void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index); // affected by layer.size
 void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, uint8_t color_index); // affected by layer.size
+
+// system layer
+void renderer_toggle_system_data(SystemData data, bool display);
 void renderer_draw_system_quit(uint8_t duration_held);
 
 // utility functions
@@ -174,6 +189,7 @@ void renderer_convert_screen_to_game(Rect* rect);
 void renderer_get_screen_dimensions(int* width, int* height);
 void renderer_get_viewport_dimensions(int* width, int* height);
 void renderer_get_game_dimensions(int* width, int* height);
+void renderer_get_top_left_coords(int* width, int* height); // top left of window, in game coords
 float renderer_get_scale_factor(void);
 bool renderer_is_in_viewport(int x, int y);
 const RendererState* renderer_get_debug_state(void);
