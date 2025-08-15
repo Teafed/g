@@ -88,16 +88,6 @@ bool renderer_init(float scale_factor) {
    g_renderer.layer_count = 0;
    g_renderer.next_layer_handle = 1;
    
-   if (file_load_sheets(&g_renderer.sprite_array, &g_renderer.font_array) == 0) {
-      renderer_cleanup();
-      return false;
-   }
-   
-   g_renderer.initialized = true;
-   d_logv(2, "screen = %s", d_name_rect(&g_renderer.screen));
-   d_logv(2, "viewport = %s", d_name_rect(&g_renderer.viewport));
-   
-   // create system layer
    LayerHandle system_layer = renderer_create_layer(true);
    if (system_layer == INVALID_LAYER) {
       d_err("could not create system layer");
@@ -107,16 +97,27 @@ bool renderer_init(float scale_factor) {
    g_renderer.system_layer_handle = system_layer;
    for (int i = 0; i < SYS_MAX; i++) {
       g_renderer.system_layer_data[i] = false;
-   }
-   
+   }   
    renderer_set_layer_size(g_renderer.system_layer_handle, 1);
    renderer_toggle_system_data(SYS_CURRENT_FPS, true);
+   
+   if (file_load_sheets(&g_renderer.sprite_array, &g_renderer.font_array) == 0) {
+      renderer_cleanup();
+      return false;
+   }
+   
+   g_renderer.initialized = true;
+   d_logv(2, "screen = %s", d_name_rect(&g_renderer.screen));
+   d_logv(2, "viewport = %s", d_name_rect(&g_renderer.viewport));
    
    return true;
 }
 
 void renderer_cleanup(void) {
    if (!g_renderer.initialized) return;
+
+   // unload assets
+   file_unload_sheets(&g_renderer.font_array, &g_renderer.sprite_array);
 
    // destroy layers
    if (g_renderer.layers) {
@@ -128,11 +129,12 @@ void renderer_cleanup(void) {
       g_renderer.layer_capacity = 0;
    }
 
-   // free surfaces
+   // free composite surface
    if (g_renderer.composite_surface) {
       SDL_FreeSurface(g_renderer.composite_surface);
       g_renderer.composite_surface = NULL;
    }
+   g_renderer.window_surface = NULL; // SDL will handle freeing
 
    // destory the window
    if (g_renderer.window) {
@@ -141,6 +143,7 @@ void renderer_cleanup(void) {
    }
    
    memset(&g_renderer, 0, sizeof(RendererState));
+   g_renderer.initialized = false;
    SDL_Log("I cleaned up the renderer");
 }
 
@@ -324,6 +327,7 @@ LayerHandle renderer_create_layer(bool can_draw_outside) {
       int new_capacity = g_renderer.layer_capacity * 2;
       Layer* new_layers = realloc(g_renderer.layers, sizeof(Layer) * new_capacity);
       if (d_dne(new_layers)) {
+         d_err("couldn't resize layer array");
          return INVALID_LAYER;
       }
       g_renderer.layers = new_layers;
@@ -336,7 +340,10 @@ LayerHandle renderer_create_layer(bool can_draw_outside) {
    Layer* layer = &g_renderer.layers[g_renderer.layer_count];
    
    layer->surface = create_layer_surface();
-   if (d_dne(layer->surface)) return INVALID_LAYER;
+   if (d_dne(layer->surface)) {
+      d_err("couldn't create layer surface");
+      return INVALID_LAYER;
+   }
    
    layer->handle = g_renderer.next_layer_handle++;
    layer->can_draw_outside_viewport = can_draw_outside;
