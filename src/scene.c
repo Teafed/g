@@ -218,12 +218,15 @@ int scene_get_stack_depth(void) {
 LayerHandle layer_bg, layer_test, layer_sized;
 int dimx = 0, dimy = 0;
 Rect moving_box = {0, 0, 100, 100};
+uint8_t box_color = 0;
 bool x_forward = true, y_forward = true;
 void title_scene_init(void) {
    layer_bg = renderer_create_layer(true);
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
+   renderer_set_layer_size(layer_test, 1);
    renderer_set_layer_size(layer_sized, 2);
+   renderer_set_layer_visible(layer_test, false);
 }
 
 extern void game_shutdown(void);
@@ -251,7 +254,7 @@ void title_scene_update(float delta_time) {
    renderer_get_game_dimensions(&dimx, &dimy);
    
    // move amt pixels once per frame
-   int amt = 10;
+   int amt = 1;
    if (x_forward) {
       if (moving_box.x + moving_box.w < dimx) moving_box.x += amt;
       else { moving_box.x -= amt; x_forward = false; }
@@ -266,12 +269,17 @@ void title_scene_update(float delta_time) {
       if (moving_box.y >= 0) moving_box.y -= amt;
       else { moving_box.y += amt; y_forward = true; }
    }
+
+   // update box color every 16 frames
+   if (timing_get_frame_count() % 16 == 0) {
+      box_color = (box_color + 1) % (PALETTE_SIZE - 1); // -1 to ignore transparent
+   }
 }
 
 void title_scene_render(void) {
    renderer_clear();
    
-   renderer_draw_rect(layer_test, moving_box, 15);
+   renderer_draw_rect(layer_sized, moving_box, box_color);
    
    { // draw bg & borders
       Rect bg = {0, 0, dimx, dimy};
@@ -282,10 +290,17 @@ void title_scene_render(void) {
       Rect border3 = {0, 479, 640, 1};
       Rect border4 = {639, 0, 1, 480};
          
-      renderer_draw_rect(layer_test, border1, 9);
-      renderer_draw_rect(layer_test, border2, 9);
-      renderer_draw_rect(layer_test, border3, 9);
-      renderer_draw_rect(layer_test, border4, 9);
+      renderer_draw_rect(layer_sized, border1, 9);
+      renderer_draw_rect(layer_sized, border2, 9);
+      renderer_draw_rect(layer_sized, border3, 9);
+      renderer_draw_rect(layer_sized, border4, 9);
+
+      for (int i = 0; i < 25; i++) {
+         renderer_draw_rect(layer_sized, (Rect){100 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
+         renderer_draw_rect(layer_sized, (Rect){100 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
+      }
+      renderer_draw_string(layer_sized, FONT_ACER_8_8, "This is the title screen.", 100, 30, 4);
+      renderer_draw_string(layer_sized, FONT_ACER_8_8, "   Press [j] to start.", 100, 50, 4);
    }
    
    { // misc testing
@@ -316,14 +331,6 @@ void title_scene_render(void) {
       }
       renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
       renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
-
-      for (int i = 0; i < 25; i++) {
-         renderer_draw_rect(layer_sized, (Rect){10 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
-         renderer_draw_rect(layer_sized, (Rect){10 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
-      }
-      renderer_draw_string(layer_sized, font, "This is the title screen.", 10, 30, 4);
-      renderer_draw_string(layer_sized, font, "   Press [j] to start.", 10, 50, 4);
-      renderer_draw_char(layer_sized, font2, '%', 100, 100, 4);
    }
 }
 
