@@ -283,18 +283,22 @@ static ImageData* load_bitmap(const char* fname) {
    /* bitmap is assumed to be in its simplest structure */
    /* e.g. header, DIB header, pixel array. DIB assumed */
    /* to be windows bitmap.                             */
-   FILE *image_file = NULL;
+   FILE* image_file = NULL;
    image_file = fopen(fname, "rb");
    if (!image_file) {
-      d_dne("image_file");
-      fclose(image_file);
+      d_err("coudln't open image file: %s", fname);
       return NULL;
    }
 
    uint8_t file_header[16];
-   fread(&file_header, 1, 14, image_file);
-   if(!(((uint16_t*)file_header)[0] == 0x4D42)) {
-      d_err("file is not a valid bitmap");
+   if (fread(&file_header, 1, 14, image_file) != 14) {
+      d_err("couldn't read file header: %s", fname);
+      fclose(image_file);
+      return NULL;
+   }
+   
+   if (((uint16_t*)file_header)[0] != 0x4D42) {
+      d_err("file is not a valid bitmap: %s", fname);
       fclose(image_file);
       return NULL;
    }
@@ -312,38 +316,50 @@ static ImageData* load_bitmap(const char* fname) {
       uint32_t color_count;
       uint32_t important_colors;
    } dib_header; // dib = device-independent format
-   fread(&dib_header, 1, sizeof(dib_header), image_file);
+   
+   if (fread(&dib_header, 1, sizeof(dib_header), image_file) != sizeof(dib_header)) {
+      d_err("couldn't read dib header: %s", fname);
+      fclose(image_file);
+      return NULL;
+   }
    
    ImageData *image_data;
    uint32_t data_size = dib_header.width * dib_header.height * 4;
-   
    image_data = malloc(sizeof(ImageData) + data_size);
-   if (!image_data) { d_err("couldn't malloc ImageData"); return NULL; }
-   {
-      image_data->size = data_size;
-      image_data->width = dib_header.width;
-      image_data->height = dib_header.height;
-      // image_data->data = image_data + 1;
+   if (!image_data) {
+      d_err("couldn't malloc ImageData: %s", fname);
+      fclose(image_file);
+      return NULL;
    }
+   image_data->size = data_size;
+   image_data->width = dib_header.width;
+   image_data->height = dib_header.height;
    
    // uint32_t bmp_pitch = dib_header.width * 3;
    uint32_t bmp_pitch = ((dib_header.width * 3 + 3) / 4) * 4; // for some reason this fixes 9x8 tiles
    uint32_t img_data_pitch = dib_header.width * 4;
    uint8_t pixel_buffer[bmp_pitch];
-   // uint8_t *pixel_data = image_data->data + image_data->size;
-   uint8_t *pixel_data = image_data->data;
+   uint8_t* pixel_data = image_data->data;
    
    for (uint32_t i = dib_header.height; i > 0; i--) {
-      fread(&pixel_buffer, 1, bmp_pitch, image_file);
+      if (fread(&pixel_buffer, 1, bmp_pitch, image_file) != bmp_pitch) {
+         d_err("couldn't read pixel data at row %u", i);
+         free(image_data);
+         fclose(image_file);
+         return NULL;
+      }
+         
       uint8_t* row_start = pixel_data + (i - 1) * img_data_pitch;
+      // TODO: ensure dib_header.width is positive
+      //       apparently negative w/h values mean the pixel data is stored bottom-up?
       for (uint32_t j = 0; j < (uint32_t)dib_header.width; j++) {
          uint32_t buffer_offset = j * 3;
          uint32_t data_offset = j * 4;
          
-         row_start[data_offset + 0] = pixel_buffer[buffer_offset + 2]; // R
-         row_start[data_offset + 1] = pixel_buffer[buffer_offset + 1]; // G
-         row_start[data_offset + 2] = pixel_buffer[buffer_offset + 0]; // B
-         row_start[data_offset + 3] = 255;
+         row_start[data_offset + 0] = pixel_buffer[buffer_offset + 2];  // R
+         row_start[data_offset + 1] = pixel_buffer[buffer_offset + 1];  // G
+         row_start[data_offset + 2] = pixel_buffer[buffer_offset + 0];  // B
+         row_start[data_offset + 3] = 255;                              // A
       }
    }
    
