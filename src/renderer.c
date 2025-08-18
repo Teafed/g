@@ -19,6 +19,8 @@ static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
                               Rect dest_screen_rect, uint8_t draw_color,
                               uint8_t size, int clip_left, int clip_top);
 
+// TODO: mapping method and dirty rect marking
+
 // CORE FUNCTIONS
 bool renderer_init(float scale_factor) {
    if (g_renderer.initialized) {
@@ -32,9 +34,9 @@ bool renderer_init(float scale_factor) {
    }
    
    g_renderer.display_resolution = RES_VGA;
-   g_renderer.game_coords = (Rect){ 0, 0, GAME_WIDTH_VGA, GAME_HEIGHT_VGA };
+   g_renderer.logical_coords = (Rect){ 0, 0, GAME_WIDTH_VGA, GAME_HEIGHT_VGA };
    
-   g_renderer.screen = (Rect){ 0, 0, (int)(GAME_WIDTH_FWVGA * scale_factor), (int)(GAME_HEIGHT_FWVGA * scale_factor) };
+   g_renderer.window_rect = (Rect){ 0, 0, (int)(GAME_WIDTH_FWVGA * scale_factor), (int)(GAME_HEIGHT_FWVGA * scale_factor) };
    g_renderer.scale_factor = scale_factor;
    calculate_viewport();
    
@@ -44,8 +46,8 @@ bool renderer_init(float scale_factor) {
    g_renderer.resize_delay_ms = RESIZE_DELAY;
    
    g_renderer.display_mode = DISPLAY_WINDOWED;
-   g_renderer.last_windowed_width = g_renderer.screen.w;
-   g_renderer.last_windowed_height = g_renderer.screen.h;
+   g_renderer.last_windowed_width = g_renderer.window_rect.w;
+   g_renderer.last_windowed_height = g_renderer.window_rect.h;
    
    g_renderer.clear_color_index = 4; // mono-black
    g_renderer.transparent_color_index = PALETTE_TRANSPARENT;
@@ -54,15 +56,15 @@ bool renderer_init(float scale_factor) {
       WINDOW_TITLE,
       SDL_WINDOWPOS_CENTERED,
       SDL_WINDOWPOS_CENTERED,
-      g_renderer.screen.w,
-      g_renderer.screen.h,
+      g_renderer.window_rect.w,
+      g_renderer.window_rect.h,
       SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
    );
    if (d_dne(g_renderer.window)) {
       renderer_cleanup();
       return false;
    }
-   SDL_SetWindowMinimumSize(g_renderer.window, g_renderer.game_coords.w, g_renderer.game_coords.h);
+   SDL_SetWindowMinimumSize(g_renderer.window, g_renderer.logical_coords.w, g_renderer.logical_coords.h);
    
    g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
    if (d_dne(g_renderer.window_surface)) {
@@ -71,7 +73,7 @@ bool renderer_init(float scale_factor) {
    }
 
    g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                     0, g_renderer.screen.w, g_renderer.screen.h,
+                     0, g_renderer.window_rect.w, g_renderer.window_rect.h,
                      32, SDL_PIXELFORMAT_RGBA8888);
    if (d_dne(g_renderer.composite_surface)) {
       renderer_cleanup();
@@ -99,7 +101,6 @@ bool renderer_init(float scale_factor) {
       g_renderer.system_layer_data[i] = false;
    }   
    renderer_set_layer_size(g_renderer.system_layer_handle, 1);
-   renderer_toggle_system_data(SYS_CURRENT_FPS, true);
    
    if (file_load_sheets(&g_renderer.sprite_array, &g_renderer.font_array) == 0) {
       renderer_cleanup();
@@ -107,8 +108,12 @@ bool renderer_init(float scale_factor) {
    }
    
    g_renderer.initialized = true;
-   d_logv(2, "screen = %s", d_name_rect(&g_renderer.screen));
-   d_logv(2, "viewport = %s", d_name_rect(&g_renderer.viewport));
+   d_logv(2, "screen = %s", d_name_rect(&g_renderer.window_rect));
+   d_logv(2, "viewport = %s", d_name_rect(&g_renderer.viewport_rect));
+
+   // debug display toggles
+   renderer_toggle_system_data(SYS_CURRENT_FPS, true);
+   renderer_toggle_system_data(SYS_AVG_FPS, true);
    
    return true;
 }
@@ -173,7 +178,7 @@ void renderer_present(void) {
          g_renderer.resize_in_progress = false;
       } else {
          // TODO: make it stretch proportionally
-         Rect stretch_rect = {0, 0, g_renderer.screen.w, g_renderer.screen.h};
+         Rect stretch_rect = {0, 0, g_renderer.window_rect.w, g_renderer.window_rect.h};
          
          g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
          if (d_dne(g_renderer.window_surface)) d_err("can't get window surface");
@@ -197,7 +202,7 @@ void renderer_present(void) {
          SDL_BlitSurface(layer->surface, NULL, g_renderer.composite_surface, NULL);
       } else {
          SDL_SetSurfaceAlphaMod(layer->surface, layer->opacity);
-         SDL_BlitSurface(layer->surface, &g_renderer.viewport, g_renderer.composite_surface,  &g_renderer.viewport);
+         SDL_BlitSurface(layer->surface, &g_renderer.viewport_rect, g_renderer.composite_surface,  &g_renderer.viewport_rect);
       }
    }
 
@@ -206,11 +211,12 @@ void renderer_present(void) {
    if (system_layer->visible) {
       /* header */
       int x = 0, y = 0;
-      renderer_get_top_left_coords(&x, &y);
+      renderer_get_logical_origin(&x, &y);
       x += (1 * system_layer->size);
       y += (1 * system_layer->size);
       draw_system_header(&x, &y);
       y += (8 * system_layer->size);
+      y += 2; // padding
 
       /* system data */
       for (int i = 0; i < SYS_MAX; i++) {
@@ -222,7 +228,7 @@ void renderer_present(void) {
       SDL_BlitSurface(system_layer->surface, NULL, g_renderer.composite_surface, NULL);
    }
    
-   SDL_BlitSurface(g_renderer.composite_surface, NULL, g_renderer.window_surface, NULL);
+   SDL_BlitSurface(g_renderer.composite_surface, NULL, g_renderer.window_surface, NULL); // valgrind: "Use of uninitialised value of size 8"
    SDL_UpdateWindowSurface(g_renderer.window);
 }
 
@@ -231,8 +237,8 @@ void renderer_handle_window_event(SDL_Event* event) {
    
    switch (event->window.event) {
    case SDL_WINDOWEVENT_SIZE_CHANGED:
-      g_renderer.screen.w = event->window.data1;
-      g_renderer.screen.h = event->window.data2;
+      g_renderer.window_rect.w = event->window.data1;
+      g_renderer.window_rect.h = event->window.data2;
       break;
    case SDL_WINDOWEVENT_RESIZED:
       if (!g_renderer.resize_in_progress) {
@@ -285,8 +291,8 @@ void renderer_set_display_mode(DisplayMode mode) {
 
    // going to fullscreen
    if (g_renderer.display_mode == DISPLAY_WINDOWED) {
-      g_renderer.last_windowed_width = g_renderer.screen.w;
-      g_renderer.last_windowed_height = g_renderer.screen.h;
+      g_renderer.last_windowed_width = g_renderer.window_rect.w;
+      g_renderer.last_windowed_height = g_renderer.window_rect.h;
    }
    
    switch (mode) {
@@ -467,7 +473,7 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
       src_rect.h * layer->size
    };
    Rect dest_screen_rect = dest_game_rect;
-   renderer_convert_game_to_screen(&dest_screen_rect);
+   renderer_convert_logical_to_window(&dest_screen_rect);
    
    // bounds checking once
    if (dest_screen_rect.x >= layer->surface->w ||
@@ -502,12 +508,12 @@ void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) 
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    if (!layer->can_draw_outside_viewport) {
-      if (x < 0 || x >= g_renderer.screen.w || y < 0 || y >= g_renderer.screen.h) {
+      if (x < 0 || x >= g_renderer.window_rect.w || y < 0 || y >= g_renderer.window_rect.h) {
          return;
       }
    }
    Rect pixel = { x, y, layer->size, layer->size };
-   renderer_convert_game_to_screen(&pixel);
+   renderer_convert_logical_to_window(&pixel);
    SDL_FillRect(layer->surface, &pixel, color_index);
 }
 
@@ -515,7 +521,7 @@ void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || color_index >= PALETTE_SIZE) return;
    
-   renderer_convert_game_to_screen(&rect);
+   renderer_convert_logical_to_window(&rect);
    SDL_FillRect(layer->surface, &rect, color_index);
 }
 
@@ -607,20 +613,40 @@ static void draw_system_data(SystemData data, int* x, int* y) {
    LayerHandle handle = g_renderer.system_layer_handle;
    // Layer* layer = find_layer(handle);
    uint8_t size = find_layer(handle)->size;
+   int new_line = 8 * size; // TODO: get font tile height
+   new_line += 2; // padding
    FontType font = FONT_SHARP_8_8;
    uint8_t color = 0; // mono-white
+   char buffer[128];
+   
    switch (data) {
    case SYS_CURRENT_FPS:
       float fps = timing_get_current_fps();
-      char buffer[128];
       snprintf(buffer, sizeof(buffer), "%.2f fps", fps);
       renderer_draw_string(handle, font, buffer, *x, *y, color);
-      x += (8 * size);
+      *y += new_line;
+      break;
+      
+   case SYS_AVG_FPS:
+      uint32_t min_ms = 0, max_ms = 0, avg_ms = 0, frames_over = 0;
+      char buffer[128];
+      timing_get_performance_info(&min_ms, &max_ms, &avg_ms, &frames_over);
+      
+      snprintf(buffer, sizeof(buffer), "avg = %u ms", avg_ms);
+      renderer_draw_string(handle, font, buffer, *x, *y, color);
+      if (frames_over > 0) {
+         snprintf(buffer, sizeof(buffer), "(%u over budget!)", frames_over);
+         renderer_draw_string(handle, font, buffer, (*x + (12 * 8)), *y, color);
+      }
+      *y += new_line;
+      snprintf(buffer, sizeof(buffer), "(min %u, max %u)", min_ms, max_ms);
+      renderer_draw_string(handle, font, buffer, *x, *y, color);
+      *y += new_line;
       break;
       
    case SYS_LAYER_COUNT:
       renderer_draw_string(handle, font, "haha weeeeee", *x, *y, color);
-      x += (8 * size);
+      *y += new_line;
       
       break;
 
@@ -653,7 +679,7 @@ SDL_Surface* renderer_get_layer_surface(LayerHandle handle) {
    return layer ? layer->surface : NULL;
 }
 
-void renderer_convert_game_to_screen(Rect* rect) {
+void renderer_convert_logical_to_window(Rect* rect) {
    // convert game coords into screen
    // d_log("");
    // d_logl("converted %s to ", d_name_rect(rect));
@@ -662,10 +688,10 @@ void renderer_convert_game_to_screen(Rect* rect) {
 
 /*
    // METHOD 1 - edge rounding
-   float left = g_renderer.viewport.x + (rect->x * g_renderer.scale_factor);
-   float right = g_renderer.viewport.x + ((rect->x + rect->w) * g_renderer.scale_factor);
-   float top = g_renderer.viewport.y + (rect->y * g_renderer.scale_factor);
-   float bottom = g_renderer.viewport.y + ((rect->y + rect->h) * g_renderer.scale_factor);
+   float left = g_renderer.viewport_rect.x + (rect->x * g_renderer.scale_factor);
+   float right = g_renderer.viewport_rect.x + ((rect->x + rect->w) * g_renderer.scale_factor);
+   float top = g_renderer.viewport_rect.y + (rect->y * g_renderer.scale_factor);
+   float bottom = g_renderer.viewport_rect.y + ((rect->y + rect->h) * g_renderer.scale_factor);
    
    rect->x = (int)roundf(left);
    rect->y = (int)roundf(top);
@@ -673,10 +699,10 @@ void renderer_convert_game_to_screen(Rect* rect) {
    rect->h = (int)roundf(bottom) - rect->y;
    
    // METHOD 2 - floor-based mapping
-   float left = g_renderer.viewport.x + (rect->x * g_renderer.scale_factor);
-   float right = g_renderer.viewport.x + ((rect->x + rect->w) * g_renderer.scale_factor);
-   float top = g_renderer.viewport.y + (rect->y * g_renderer.scale_factor);
-   float bottom = g_renderer.viewport.y + ((rect->y + rect->h) * g_renderer.scale_factor);
+   float left = g_renderer.viewport_rect.x + (rect->x * g_renderer.scale_factor);
+   float right = g_renderer.viewport_rect.x + ((rect->x + rect->w) * g_renderer.scale_factor);
+   float top = g_renderer.viewport_rect.y + (rect->y * g_renderer.scale_factor);
+   float bottom = g_renderer.viewport_rect.y + ((rect->y + rect->h) * g_renderer.scale_factor);
    
    rect->x = (int)floorf(left);
    rect->y = (int)floorf(top);
@@ -689,10 +715,10 @@ void renderer_convert_game_to_screen(Rect* rect) {
    int sf1000 = (int)(g_renderer.scale_factor * 1000.0f); // 3 digits precision
    
    // edge-based conversion with integer math
-   int left = g_renderer.viewport.x + (rect->x * sf1000) / 1000;
-   int right = g_renderer.viewport.x + ((rect->x + rect->w) * sf1000) / 1000;
-   int top = g_renderer.viewport.y + (rect->y * sf1000) / 1000;
-   int bottom = g_renderer.viewport.y + ((rect->y + rect->h) * sf1000) / 1000;
+   int left = g_renderer.viewport_rect.x + (rect->x * sf1000) / 1000;
+   int right = g_renderer.viewport_rect.x + ((rect->x + rect->w) * sf1000) / 1000;
+   int top = g_renderer.viewport_rect.y + (rect->y * sf1000) / 1000;
+   int bottom = g_renderer.viewport_rect.y + ((rect->y + rect->h) * sf1000) / 1000;
    
    rect->x = left;
    rect->y = top;
@@ -703,17 +729,17 @@ void renderer_convert_game_to_screen(Rect* rect) {
 }
 
 // TODO: change this as well
-void renderer_convert_screen_to_game(Rect* rect) {
+void renderer_convert_window_to_logical(Rect* rect) {
    // convert screen coords into game coords
    // d_log("");
    // d_logl("converted %s to ", d_name_rect(rect));
    if (!rect) return;
 
    // METHOD 1 - edge rounding
-   // float left = (rect->x - g_renderer.viewport.x) / g_renderer.scale_factor;
-   // float right = (rect->x + rect->w - g_renderer.viewport.x) / g_renderer.scale_factor;
-   // float top = (rect->y - g_renderer.viewport.y) / g_renderer.scale_factor;
-   // float bottom = (rect->y + rect->h - g_renderer.viewport.y) / g_renderer.scale_factor;
+   // float left = (rect->x - g_renderer.viewport_rect.x) / g_renderer.scale_factor;
+   // float right = (rect->x + rect->w - g_renderer.viewport_rect.x) / g_renderer.scale_factor;
+   // float top = (rect->y - g_renderer.viewport_rect.y) / g_renderer.scale_factor;
+   // float bottom = (rect->y + rect->h - g_renderer.viewport_rect.y) / g_renderer.scale_factor;
    // 
    // rect->x = (int)roundf(left);
    // rect->y = (int)roundf(top);
@@ -722,10 +748,10 @@ void renderer_convert_screen_to_game(Rect* rect) {
 
 /*
    // METHOD 2 - floor-based mapping
-   float left = (rect->x - g_renderer.viewport.x) / g_renderer.scale_factor;
-   float right = (rect->x + rect->w - g_renderer.viewport.x) / g_renderer.scale_factor;
-   float top = (rect->y - g_renderer.viewport.y) / g_renderer.scale_factor;
-   float bottom = (rect->y + rect->h - g_renderer.viewport.y) / g_renderer.scale_factor;
+   float left = (rect->x - g_renderer.viewport_rect.x) / g_renderer.scale_factor;
+   float right = (rect->x + rect->w - g_renderer.viewport_rect.x) / g_renderer.scale_factor;
+   float top = (rect->y - g_renderer.viewport_rect.y) / g_renderer.scale_factor;
+   float bottom = (rect->y + rect->h - g_renderer.viewport_rect.y) / g_renderer.scale_factor;
    
    rect->x = (int)floorf(left);
    rect->y = (int)floorf(top);
@@ -736,24 +762,24 @@ void renderer_convert_screen_to_game(Rect* rect) {
 }
 
 void renderer_get_screen_dimensions(int* width, int* height) {
-   if (width) *width = g_renderer.screen.w;
-   if (height) *height = g_renderer.screen.h;
+   if (width) *width = g_renderer.window_rect.w;
+   if (height) *height = g_renderer.window_rect.h;
 }
 
 void renderer_get_viewport_dimensions(int* width, int* height) {
-   if (width) *width = g_renderer.viewport.w;
-   if (height) *height = g_renderer.viewport.h;
+   if (width) *width = g_renderer.viewport_rect.w;
+   if (height) *height = g_renderer.viewport_rect.h;
 }
 
-void renderer_get_game_dimensions(int* width, int* height) {
-   if (width) *width = g_renderer.game_coords.w;
-   if (height) *height = g_renderer.game_coords.h;
+void renderer_get_logical_dimensions(int* width, int* height) {
+   if (width) *width = g_renderer.logical_coords.w;
+   if (height) *height = g_renderer.logical_coords.h;
 }
 
-void renderer_get_top_left_coords(int* width, int* height) {
+void renderer_get_logical_origin(int* width, int* height) {
    // it's not perfect but close enough
-   int x_diff = (int)((float)g_renderer.viewport.x / g_renderer.scale_factor);
-   int y_diff = (int)((float)g_renderer.viewport.y / g_renderer.scale_factor);
+   int x_diff = (int)((float)g_renderer.viewport_rect.x / g_renderer.scale_factor);
+   int y_diff = (int)((float)g_renderer.viewport_rect.y / g_renderer.scale_factor);
    if (width) *width = -x_diff;
    if (height) *height = -y_diff;
 }
@@ -763,8 +789,8 @@ float renderer_get_scale_factor(void) {
 }
 
 bool renderer_is_in_viewport(int x, int y){
-   return (x >= 0 && x < g_renderer.screen.w && 
-            y >= 0 && y < g_renderer.screen.h);
+   return (x >= 0 && x < g_renderer.window_rect.w && 
+            y >= 0 && y < g_renderer.window_rect.h);
 }
 
 // INTERNAL
@@ -779,32 +805,32 @@ static void calculate_viewport(void) {
    switch (effective_resize_mode) {
    case RESIZE_FIT:
       Rect result = { 0 };
-      float fixed_aspect = (float)g_renderer.game_coords.w / g_renderer.game_coords.h;
-      float window_aspect = (float)g_renderer.screen.w / g_renderer.screen.h;
+      float fixed_aspect = (float)g_renderer.logical_coords.w / g_renderer.logical_coords.h;
+      float window_aspect = (float)g_renderer.window_rect.w / g_renderer.window_rect.h;
 
       if (fixed_aspect > window_aspect) { // taller, letterboxing on top/bottom
-         result.w = g_renderer.screen.w;
-         result.h = (int)(g_renderer.screen.w / fixed_aspect);
+         result.w = g_renderer.window_rect.w;
+         result.h = (int)(g_renderer.window_rect.w / fixed_aspect);
       } else { // wider, letterboxing on sides
-         result.w = (int)(g_renderer.screen.h * fixed_aspect);
-         result.h = g_renderer.screen.h;
+         result.w = (int)(g_renderer.window_rect.h * fixed_aspect);
+         result.h = g_renderer.window_rect.h;
       }
-      g_renderer.scale_factor = (float)result.w / g_renderer.game_coords.w;
+      g_renderer.scale_factor = (float)result.w / g_renderer.logical_coords.w;
       
-      g_renderer.viewport.x = (g_renderer.screen.w - result.w) / 2;
-      g_renderer.viewport.y = (g_renderer.screen.h - result.h) / 2;
-      g_renderer.viewport.w = result.w;
-      g_renderer.viewport.h = result.h;
+      g_renderer.viewport_rect.x = (g_renderer.window_rect.w - result.w) / 2;
+      g_renderer.viewport_rect.y = (g_renderer.window_rect.h - result.h) / 2;
+      g_renderer.viewport_rect.w = result.w;
+      g_renderer.viewport_rect.h = result.h;
 
       break;
       
    case RESIZE_FIXED:
       // viewport width and height don't change
-      g_renderer.viewport.x = (g_renderer.screen.w - g_renderer.viewport.w) / 2;
-      g_renderer.viewport.y = (g_renderer.screen.h - g_renderer.viewport.h) / 2;
+      g_renderer.viewport_rect.x = (g_renderer.window_rect.w - g_renderer.viewport_rect.w) / 2;
+      g_renderer.viewport_rect.y = (g_renderer.window_rect.h - g_renderer.viewport_rect.h) / 2;
       break;
    }
-   d_logv(3, "viewport calculated to be %s", d_name_rect(&g_renderer.viewport));
+   d_logv(3, "viewport calculated to be %s", d_name_rect(&g_renderer.viewport_rect));
 }
 
 static Layer* find_layer(LayerHandle handle) {
@@ -819,7 +845,7 @@ static Layer* find_layer(LayerHandle handle) {
 }
 
 static SDL_Surface* create_layer_surface(void) {
-   SDL_Surface* surface = SDL_CreateRGBSurface(0, g_renderer.screen.w, g_renderer.screen.h, 8, 0, 0, 0, 0);
+   SDL_Surface* surface = SDL_CreateRGBSurface(0, g_renderer.window_rect.w, g_renderer.window_rect.h, 8, 0, 0, 0, 0);
    if (d_dne(surface)) {
       return NULL;
    }   
@@ -833,7 +859,7 @@ static SDL_Surface* create_layer_surface(void) {
 }
 
 static void recreate_layer_surface(SDL_Surface** surface) {
-   // called if change in g_renderer.screen or transparent_color_index
+   // called if change in g_renderer.window_rect or transparent_color_index
    if (surface && *surface) {
       SDL_FreeSurface(*surface);
    }
@@ -846,6 +872,7 @@ static void recreate_layer_surface(SDL_Surface** surface) {
    // d_var((*surface)->h);
 }
 
+// TODO: preserve what was already drawn when scaling
 static void resize_all_surfaces(void) {
    int new_w, new_h;
    SDL_GetWindowSize(g_renderer.window, &new_w, &new_h);
@@ -855,7 +882,7 @@ static void resize_all_surfaces(void) {
       d_logl("recreating composite surface");
       SDL_FreeSurface(g_renderer.composite_surface);
       g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                     0, g_renderer.screen.w, g_renderer.screen.h,
+                     0, g_renderer.window_rect.w, g_renderer.window_rect.h,
                      32, SDL_PIXELFORMAT_RGBA8888);
       if (d_dne(g_renderer.composite_surface)) {
          d_err("couldn't recreate composite surface");

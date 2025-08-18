@@ -36,10 +36,10 @@ typedef enum {
    DISPLAY_FULLSCREEN
 } DisplayMode;
 
-// TODO: is this the best place for this?
 typedef enum {
-   SYS_CURRENT_FPS, // -> timing_get_current_fps()
-   SYS_LAYER_COUNT, // -> g_renderer
+   SYS_CURRENT_FPS,  // -> timing_get_current_fps()
+   SYS_AVG_FPS,      // -> timing_get_performance_info()
+   SYS_LAYER_COUNT,  // -> g_renderer
    SYS_MAX
 } SystemData;
 
@@ -50,7 +50,7 @@ typedef struct {
    uint8_t opacity;     // 255 = fully opaque
    uint8_t size;
    // size affects the size of each pixel drawn:
-   //    x,y placement is still same as game_coords
+   //    x,y placement is still same as logical_coords
    //    with drawing shapes, pixels align to the nearest size multiple
    //    with drawing from sheets, the size is scaled
    //    i'm imagining only using like 1x1, 2x2, 4x4, 8x8, etc but keeping options open as well
@@ -64,7 +64,10 @@ typedef struct {
    // 
 // } LayerGroup;
 
-// TODO: look into SDL_BlitMap in surface for fast blit mapping
+// g_renderer.game_coords -> logical_coords
+// g_renderer.screen -> window_rect
+// g_renderer.viewport -> viewport_rect
+
 #include "file.h"
 typedef struct {
    bool initialized;
@@ -73,10 +76,10 @@ typedef struct {
    SDL_Surface* composite_surface;  // truecolor surface, composite of all layers
    
    DisplayResolution display_resolution;
-   Rect game_coords;                // (game coords) height and width based on DisplayResolution
+   Rect logical_coords;             // (logical coords) height and width based on DisplayResolution
    
-   Rect viewport;                   // (window coords) rectangle for game area
-   Rect screen;                     // (window coords) rectangle for window screen
+   Rect viewport_rect;              // (window coords) rectangle for game area
+   Rect window_rect;                // (window coords) rectangle for window screen
    float scale_factor;
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
@@ -93,8 +96,8 @@ typedef struct {
    LayerHandle system_layer_handle;
    bool system_layer_data[SYS_MAX];
 
-   SpriteArray sprite_array;
    FontArray font_array;
+   SpriteArray sprite_array;
    
    uint8_t clear_color_index;
    uint8_t transparent_color_index;
@@ -184,12 +187,12 @@ void renderer_draw_system_quit(uint8_t duration_held);
 
 // utility functions
 SDL_Surface* renderer_get_layer_surface(LayerHandle handle);
-void renderer_convert_game_to_screen(Rect* rect);
-void renderer_convert_screen_to_game(Rect* rect);
+void renderer_convert_logical_to_window(Rect* rect);
+void renderer_convert_window_to_logical(Rect* rect);
 void renderer_get_screen_dimensions(int* width, int* height);
 void renderer_get_viewport_dimensions(int* width, int* height);
-void renderer_get_game_dimensions(int* width, int* height);
-void renderer_get_top_left_coords(int* width, int* height); // top left of window, in game coords
+void renderer_get_logical_dimensions(int* width, int* height);
+void renderer_get_logical_origin(int* width, int* height);
 float renderer_get_scale_factor(void);
 bool renderer_is_in_viewport(int x, int y);
 const RendererState* renderer_get_debug_state(void);
