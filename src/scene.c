@@ -251,7 +251,7 @@ void title_scene_handle_input(InputEvent event, InputState state, int device_id)
 void title_scene_update(float delta_time) {
    (void)delta_time;
    
-   renderer_get_game_dimensions(&dimx, &dimy);
+   renderer_get_logical_dimensions(&dimx, &dimy);
    
    // move amt pixels once per frame
    int amt = 1;

@@ -93,6 +93,7 @@ const char* d_name_rect(Rect* rect) {
 const char* d_name_system_data(SystemData data) {
    static const char* names[] = {
       "SYS_CURRENT_FPS",
+      "SYS_AVG_FPS",
       "SYS_LAYER_COUNT",
       "SYS_MAX"
    };
@@ -101,8 +102,8 @@ const char* d_name_system_data(SystemData data) {
 
 void d_print_renderer_dims(void) {
    const RendererState* g_renderer = renderer_get_debug_state();
-   Rect viewport = g_renderer->viewport;
-   Rect screen = g_renderer->screen;
+   Rect viewport = g_renderer->viewport_rect;
+   Rect screen = g_renderer->window_rect;
    d_log("");
    d_logl("---------\n");
    d_logl("RENDERER DIMS\n");
@@ -111,8 +112,8 @@ void d_print_renderer_dims(void) {
    d_var(g_renderer->composite_surface->w);
    d_var(g_renderer->composite_surface->h);
    d_logl("display_resolution = %s", d_name_display_resolution(g_renderer->display_resolution)); d_logl("\n");
-   d_logl("viewport =           %s", d_name_rect(&viewport)); d_logl("\n");
-   d_logl("screen =             %s", d_name_rect(&screen)); d_logl("\n");
+   d_logl("viewport_rect =      %s", d_name_rect(&viewport)); d_logl("\n");
+   d_logl("window_rect =        %s", d_name_rect(&screen)); d_logl("\n");
    d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
    d_var(g_renderer->last_windowed_width);
    d_var(g_renderer->last_windowed_height);
@@ -263,21 +264,21 @@ const char* d_name_scene_type(SceneType type) {
 void d_print_scene_stack_entry(int index) {
    if (index < 0) return;
    
-   if (index < scene_get_stack_depth()) {
-        SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-        d_log("");
-        d_logl("%s", d_name_scene_type(scene->type));
-        d_logl(" | P1 = %d", scene->player_devices[0]);
-        d_logl(" | P2 = %d", scene->player_devices[1]);
-        d_logl(" | pos = %d\n", scene->menu_position);
+   if (index < scene_get_stack_depth() && LOG_VERBOSITY >= LOG_VERBOSE) {
+      SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
+      d_log("");
+      d_logl("%s", d_name_scene_type(scene->type));
+      d_logl(" | P1 = %d", scene->player_devices[0]);
+      d_logl(" | P2 = %d", scene->player_devices[1]);
+      d_logl(" | pos = %d\n", scene->menu_position);
    }
    /* else if (index < MAX_SCENE_STACK_DEPTH) {
-        SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-        d_log("");
-        d_logl("%s", d_name_scene_type(scene->type));
-        d_logl(" | P1 = %d", scene->player_devices[0]);
-        d_logl(" | P2 = %d", scene->player_devices[1]);
-        d_logl(" | pos = %d ***\n", scene->menu_position
+      SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
+      d_log("");
+      d_logl("%s", d_name_scene_type(scene->type));
+      d_logl(" | P1 = %d", scene->player_devices[0]);
+      d_logl(" | P2 = %d", scene->player_devices[1]);
+      d_logl(" | pos = %d ***\n", scene->menu_position
    }*/
 }
 
