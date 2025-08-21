@@ -102,8 +102,8 @@ const char* d_name_system_data(SystemData data) {
 
 void d_print_renderer_dims(void) {
    const RendererState* g_renderer = renderer_get_debug_state();
-   Rect viewport = g_renderer->viewport_rect;
-   Rect screen = g_renderer->window_rect;
+   Rect unit_map = g_renderer->unit_map;
+   Rect window_map = g_renderer->window_map;
    d_log("");
    d_logl("---------\n");
    d_logl("RENDERER DIMS\n");
@@ -112,8 +112,8 @@ void d_print_renderer_dims(void) {
    d_var(g_renderer->composite_surface->w);
    d_var(g_renderer->composite_surface->h);
    d_logl("display_resolution = %s", d_name_display_resolution(g_renderer->display_resolution)); d_logl("\n");
-   d_logl("viewport_rect =      %s", d_name_rect(&viewport)); d_logl("\n");
-   d_logl("window_rect =        %s", d_name_rect(&screen)); d_logl("\n");
+   d_logl("unit_map =        %s", d_name_rect(&unit_map)); d_logl("\n");
+   d_logl("window_map =         %s", d_name_rect(&window_map)); d_logl("\n");
    d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
    d_var(g_renderer->last_windowed_width);
    d_var(g_renderer->last_windowed_height);

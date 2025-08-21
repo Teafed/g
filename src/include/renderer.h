@@ -48,12 +48,7 @@ typedef struct {
    bool can_draw_outside_viewport;
    bool visible;
    uint8_t opacity;     // 255 = fully opaque
-   uint8_t size;
-   // size affects the size of each pixel drawn:
-   //    x,y placement is still same as logical_coords
-   //    with drawing shapes, pixels align to the nearest size multiple
-   //    with drawing from sheets, the size is scaled
-   //    i'm imagining only using like 1x1, 2x2, 4x4, 8x8, etc but keeping options open as well
+   uint8_t size;        // 2 = default
    SDL_Surface* surface;
 
    // TODO: other kind of float scaling based on perspective
@@ -64,10 +59,6 @@ typedef struct {
    // 
 // } LayerGroup;
 
-// g_renderer.game_coords -> logical_coords
-// g_renderer.screen -> window_rect
-// g_renderer.viewport -> viewport_rect
-
 #include "file.h"
 typedef struct {
    bool initialized;
@@ -76,11 +67,12 @@ typedef struct {
    SDL_Surface* composite_surface;  // truecolor surface, composite of all layers
    
    DisplayResolution display_resolution;
-   Rect logical_coords;             // (logical coords) height and width based on DisplayResolution
-   
-   Rect viewport_rect;              // (window coords) rectangle for game area
-   Rect window_rect;                // (window coords) rectangle for window screen
    float scale_factor;
+   Rect unit_map;    // w,h based on DisplayResolution
+                     // x,y for offset
+   Rect window_map;  // w,h based on current window dims
+                     // x,y for offset
+   
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
    uint32_t resize_start_time;      // set if resize happens
@@ -88,6 +80,9 @@ typedef struct {
       
    DisplayMode display_mode;
    int last_windowed_width, last_windowed_height; // (window coords) updated when fullscreening
+   
+   uint8_t clear_color_index;
+   uint8_t transparent_color_index;
    
    Layer* layers;                   // 8-bit indexed surfaces to be compiled on composite_surface
    int layer_count;
@@ -98,9 +93,6 @@ typedef struct {
 
    FontArray font_array;
    SpriteArray sprite_array;
-   
-   uint8_t clear_color_index;
-   uint8_t transparent_color_index;
 } RendererState;
 
 // TODO: palette("red-ivwy") returns uint8_t 11
@@ -152,7 +144,6 @@ void renderer_present(void); // call every frame
 void renderer_handle_window_event(SDL_Event* event); // call every frame
 
 // config options
-void renderer_set_scale(float scale);
 void renderer_set_display_resolution(DisplayResolution res);
 void renderer_set_display_mode(DisplayMode mode);
 void renderer_set_resize_mode(ResizeMode mode);
@@ -162,24 +153,20 @@ void renderer_set_clear_color(uint8_t color_index);
 /* defaults: size = 2, visible = true, opacity = 255 */
 LayerHandle renderer_create_layer(bool can_draw_outside);
 void renderer_destroy_layer(LayerHandle handle);
-void renderer_set_layer_draw_outisde(LayerHandle handle, bool can_draw);
-bool renderer_get_layer_draw_outisde(LayerHandle handle);
+void renderer_set_layer_draw_outside(LayerHandle handle, bool can_draw);
 void renderer_set_layer_visible(LayerHandle handle, bool visible);
-bool renderer_get_layer_visible(LayerHandle handle);
 void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity);
-uint8_t renderer_get_layer_opacity(LayerHandle handle);
 void renderer_set_layer_size(LayerHandle handle, uint8_t size);
-uint8_t renderer_get_layer_size(LayerHandle handle);
 
 // drawing functions
-void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect, int dest_x, int dest_y, uint8_t draw_color);
+void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect, int dest_x, int dest_y, uint8_t color_index);
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index);
 void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index);
-void renderer_draw_rect_raw(LayerHandle handle, Rect rect, uint8_t color_index);
+void renderer_draw_rect_raw(Rect rect, uint8_t color_index);
 void renderer_draw_fill(LayerHandle handle, uint8_t color_index);
 #include "file.h"
-void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index); // affected by layer.size
-void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, uint8_t color_index); // affected by layer.size
+void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index);
+void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, uint8_t color_index);
 
 // system layer
 void renderer_toggle_system_data(SystemData data, bool display);
@@ -187,13 +174,9 @@ void renderer_draw_system_quit(uint8_t duration_held);
 
 // utility functions
 SDL_Surface* renderer_get_layer_surface(LayerHandle handle);
-void renderer_convert_logical_to_window(Rect* rect);
-void renderer_convert_window_to_logical(Rect* rect);
-void renderer_get_screen_dimensions(int* width, int* height);
-void renderer_get_viewport_dimensions(int* width, int* height);
-void renderer_get_logical_dimensions(int* width, int* height);
-void renderer_get_logical_origin(int* width, int* height);
-float renderer_get_scale_factor(void);
+void renderer_get_window_dims(int* width, int* height);
+void renderer_get_dims(int* width, int* height);
+void renderer_get_dims_full(int* width, int* height);
 bool renderer_is_in_viewport(int x, int y);
 const RendererState* renderer_get_debug_state(void);
 
