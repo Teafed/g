@@ -15,9 +15,6 @@ static SDL_Surface* create_layer_surface(bool can_draw_outside);
 static void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
 static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index);
-static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
-                              Rect dest_screen_rect, uint8_t draw_color,
-                              uint8_t size, int clip_left, int clip_top);
 
 // TODO: mapping method and dirty rect marking
 
@@ -71,8 +68,10 @@ bool renderer_init(float scale_factor) {
    g_renderer.transparent_color_index = PALETTE_TRANSPARENT;
 
    g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                     0, g_renderer.window_surface->w, g_renderer.window_surface->h,
-                     32, SDL_PIXELFORMAT_RGBA8888);
+                  0,
+                  (g_renderer.unit_map.x * 2) + g_renderer.unit_map.w,
+                  (g_renderer.unit_map.y * 2) + g_renderer.unit_map.h,
+                  32, SDL_PIXELFORMAT_RGBA8888);
    if (d_dne(g_renderer.composite_surface)) {
       renderer_cleanup();
       return false;
@@ -159,8 +158,9 @@ void renderer_clear(void) {
 }
 
 extern void scene_render(void);
-void renderer_present(void) {
+void renderer_present(void) {   
    if (!g_renderer.initialized) return;
+   // d_print_renderer_dims();
    if (g_renderer.resize_in_progress) {
       uint32_t current_time = timing_get_game_time_ms();
       uint32_t time_since_resize = current_time - g_renderer.resize_start_time;
@@ -173,8 +173,8 @@ void renderer_present(void) {
          // just stretch it !
          g_renderer.window_surface = SDL_GetWindowSurface(g_renderer.window);
          if (d_dne(g_renderer.window_surface)) d_err("can't get window surface");
-         SDL_BlitScaled(g_renderer.composite_surface, &g_renderer.unit_map,
-                       g_renderer.window_surface, &g_renderer.window_map);
+         SDL_BlitScaled(g_renderer.composite_surface, NULL,
+                       g_renderer.window_surface, NULL);
          SDL_UpdateWindowSurface(g_renderer.window);
          return;
       }
@@ -193,8 +193,7 @@ void renderer_present(void) {
       if (layer->can_draw_outside_viewport) {
          SDL_BlitSurface(layer->surface, NULL, g_renderer.composite_surface, NULL);
       } else {
-         SDL_BlitSurface(layer->surface, &g_renderer.unit_map,
-                        g_renderer.composite_surface, NULL);
+         SDL_BlitSurface(layer->surface, NULL, g_renderer.composite_surface, &g_renderer.unit_map);
       }
    }
 
@@ -216,15 +215,12 @@ void renderer_present(void) {
             draw_system_data(i, &x, &y);
          }
       }
-      
       SDL_BlitSurface(system_layer->surface, NULL, g_renderer.composite_surface, NULL);
    }
    
    SDL_FillRect(g_renderer.window_surface, NULL, g_renderer.clear_color_index);
-   
-   // blit composite to the calculated window rectangle
-   SDL_BlitScaled(g_renderer.composite_surface, &g_renderer.unit_map,
-                 g_renderer.window_surface, &g_renderer.window_map);
+   SDL_BlitScaled(g_renderer.composite_surface, NULL,
+                 g_renderer.window_surface, NULL);
    SDL_UpdateWindowSurface(g_renderer.window);
 }
 
@@ -446,6 +442,7 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || !source) return;
 
+   // TODO: adjust this to align with layer size
    Rect dest_rect = {
       dest_x,
       dest_y,
@@ -453,21 +450,40 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
       src_rect.h * layer->size
    };
    
-   // bounds checking once
-   if (dest_rect.x >= layer->surface->w ||
-       dest_rect.y >= layer->surface->h ||
-       dest_rect.x + dest_rect.w <= 0 ||
-       dest_rect.y + dest_rect.h <= 0) {
+   // bounds check
+   int lower_bound_x, lower_bound_y, upper_bound_x, upper_bound_y;
+   if (layer->can_draw_outside_viewport) {
+      // can draw anywhere on the surface, expressed in window coordinates
+      lower_bound_x = -g_renderer.unit_map.x;
+      lower_bound_y = -g_renderer.unit_map.y;
+      upper_bound_x = layer->surface->w - g_renderer.unit_map.x;
+      upper_bound_y = layer->surface->h - g_renderer.unit_map.y;
+   } else {
+      // can only draw within viewport
+      lower_bound_x = 0;
+      lower_bound_y = 0;
+      upper_bound_x = g_renderer.unit_map.w;
+      upper_bound_y = g_renderer.unit_map.h;
+   }
+
+   if (dest_rect.x + dest_rect.w <= lower_bound_x ||
+       dest_rect.y + dest_rect.h <= lower_bound_y ||
+       dest_rect.x >= upper_bound_x ||
+       dest_rect.y >= upper_bound_y) {
       return;
    }
    
-   // clamp to surface bounds
-   int clip_left   = dest_rect.x < 0 ? -dest_rect.x : 0;
-   int clip_top    = dest_rect.y < 0 ? -dest_rect.y : 0;
-   int clip_right  = (dest_rect.x + dest_rect.w > layer->surface->w) ?
-                     (dest_rect.x + dest_rect.w - layer->surface->w) : 0;
-   int clip_bottom = (dest_rect.y + dest_rect.h > layer->surface->h) ?
-                     (dest_rect.y + dest_rect.h - layer->surface->h) : 0;
+   // TODO: adjust this to align with layer size
+   // clamp to drawing bounds
+   int clip_left   = (dest_rect.x < lower_bound_x) ? (lower_bound_x - dest_rect.x) : 0;
+   int clip_top    = (dest_rect.y < lower_bound_y) ? (lower_bound_y - dest_rect.y) : 0;
+   int clip_right  = (dest_rect.x + dest_rect.w > upper_bound_x) ?
+                     (dest_rect.x + dest_rect.w - upper_bound_x) : 0;
+   int clip_bottom = (dest_rect.y + dest_rect.h > upper_bound_y) ?
+                     (dest_rect.y + dest_rect.h - upper_bound_y) : 0;
+   
+   int src_clip_left = clip_left / layer->size;
+   int src_clip_top = clip_top / layer->size;
    
    // adjust destination rect
    dest_rect.x += clip_left;
@@ -477,8 +493,39 @@ void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
    
    if (dest_rect.w <= 0 || dest_rect.h <= 0) return;
    
-   blit_masked_scaled(layer, source, src_rect, dest_rect, color_index,
-                      layer->size, clip_left, clip_top);
+   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
+   int layer_pitch = layer->surface->pitch;
+
+   if (layer->can_draw_outside_viewport) {
+      dest_rect.x += g_renderer.unit_map.x;
+      dest_rect.y += g_renderer.unit_map.y;
+   }
+   
+   for (int dest_y = 0; dest_y < dest_rect.h; dest_y++) {
+      for (int dest_x = 0; dest_x < dest_rect.w; dest_x++) {
+         // map destination pixel back to original unclipped position
+         int src_x = src_rect.x + src_clip_left + (dest_x / layer->size);
+         int src_y = src_rect.y + src_clip_top + (dest_y / layer->size);
+         
+         // bounds check for source image
+         if (src_x >= source->width || src_y >= source->height ||
+             src_x < 0 || src_y < 0) continue;
+         
+         int src_offset = (src_y * source->width + src_x) * 4;
+         
+         if (source->data[src_offset + 1] > 128) continue; // transparent
+         
+         // draw the destination pixel
+         int screen_x = dest_rect.x + dest_x;
+         int screen_y = dest_rect.y + dest_y;
+         
+         // bounds check for layer surface
+         if (screen_x >= 0 && screen_x < layer->surface->w && 
+             screen_y >= 0 && screen_y < layer->surface->h) {
+            layer_pixels[screen_y * layer_pitch + screen_x] = color_index;
+         }
+      }
+   }
 }
 
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) {
@@ -657,13 +704,15 @@ void renderer_get_window_dims(int* width, int* height) {
 }
 
 void renderer_get_dims(int* width, int* height) {
-   if (width) *width = g_renderer.unit_map.x + g_renderer.unit_map.w;
-   if (height) *height = g_renderer.unit_map.y + g_renderer.unit_map.h;
+   if (width) *width = g_renderer.unit_map.w;
+   if (height) *height = g_renderer.unit_map.h;
 }
 
-void renderer_get_dims_full(int* width, int* height) {
-   if (width) *width = g_renderer.unit_map.x + g_renderer.unit_map.w;
-   if (height) *height = g_renderer.unit_map.y + g_renderer.unit_map.h;
+void renderer_get_dims_full(int* width, int* height, int* x_offset, int* y_offset) {
+   if (width) *width = g_renderer.unit_map.w;
+   if (height) *height = g_renderer.unit_map.h;
+   if (x_offset) *x_offset = g_renderer.unit_map.x;
+   if (y_offset) *y_offset = g_renderer.unit_map.y;
 }
 
 bool renderer_is_in_viewport(int x, int y) {
@@ -691,6 +740,10 @@ static void calculate_mapping(void) {
    // unit viewport always starts at origin - it's the full game area
    g_renderer.unit_map.x = 0;
    g_renderer.unit_map.y = 0;
+
+   // this never changes
+   g_renderer.window_map.x = 0;
+   g_renderer.window_map.y = 0;
    
    ResizeMode effective_resize_mode = g_renderer.resize_mode;
    if (g_renderer.display_mode == DISPLAY_BORDERLESS || 
@@ -706,25 +759,30 @@ static void calculate_mapping(void) {
       if (viewport_aspect < window_aspect) {
          // letterbox left/right
          g_renderer.scale_factor = (float)g_renderer.window_surface->h / g_renderer.unit_map.h;
-         int window_w = (int)(g_renderer.unit_map.w * g_renderer.scale_factor + 0.5f);
-         int window_h = (int)(g_renderer.unit_map.h * g_renderer.scale_factor + 0.5f);
-         int window_x = (g_renderer.window_surface->w - window_w) / 2;
-         g_renderer.window_map = (Rect){window_x, 0, window_w, window_h};
-         
+   
+         float viewport_width = g_renderer.unit_map.w * g_renderer.scale_factor; // window coords
+         float x_offset_window = (g_renderer.window_surface->w - viewport_width) / 2;
+         g_renderer.unit_map.x = (int)(x_offset_window / g_renderer.scale_factor + 0.5f);
+         g_renderer.unit_map.y = 0;
       } else {
          // letterbox top/bottom
          g_renderer.scale_factor = (float)g_renderer.window_surface->w / g_renderer.unit_map.w;
-         int window_w = (int)(g_renderer.unit_map.w * g_renderer.scale_factor + 0.5f);
-         int window_h = (int)(g_renderer.unit_map.h * g_renderer.scale_factor + 0.5f);
-         int window_y = (g_renderer.window_surface->h - window_h) / 2;
-         g_renderer.window_map = (Rect){0, window_y, window_w, window_h};
+   
+         float viewport_height = g_renderer.unit_map.h * g_renderer.scale_factor; // window coords
+         float y_offset_window = (g_renderer.window_surface->h - viewport_height) / 2;
+         g_renderer.unit_map.x = 0;
+         g_renderer.unit_map.y = (int)(y_offset_window / g_renderer.scale_factor + 0.5f);
       }
       }
       break;
       
    case RESIZE_FIXED:
-      g_renderer.window_map.x = (g_renderer.window_surface->w - g_renderer.unit_map.w) / 2;
-      g_renderer.window_map.y = (g_renderer.window_surface->h - g_renderer.unit_map.h) / 2;
+      int window_x = (g_renderer.window_surface->w - (g_renderer.unit_map.w * g_renderer.scale_factor)) / 2;
+      int window_y = (g_renderer.window_surface->h - (g_renderer.unit_map.h * g_renderer.scale_factor)) / 2;
+      g_renderer.window_map.x = window_x;
+      g_renderer.window_map.y = window_y;
+      g_renderer.unit_map.x = window_x / g_renderer.scale_factor;
+      g_renderer.unit_map.y = window_y / g_renderer.scale_factor;
       break;
    }
    
@@ -747,8 +805,8 @@ static Layer* find_layer(LayerHandle handle) {
 static SDL_Surface* create_layer_surface(bool can_draw_outside) {
    SDL_Surface* surface;
    if (can_draw_outside) {
-      int full_w = g_renderer.unit_map.x + g_renderer.unit_map.w;
-      int full_h = g_renderer.unit_map.y + g_renderer.unit_map.h;
+      int full_w = g_renderer.unit_map.w + (g_renderer.unit_map.x * 2);
+      int full_h = g_renderer.unit_map.h + (g_renderer.unit_map.y * 2);
       surface = SDL_CreateRGBSurface(0, full_w, full_h, 8, 0, 0, 0, 0);
    } else {
       surface = SDL_CreateRGBSurface(0, g_renderer.unit_map.w, g_renderer.unit_map.h, 8, 0, 0, 0, 0);
@@ -761,6 +819,7 @@ static SDL_Surface* create_layer_surface(bool can_draw_outside) {
    SDL_SetSurfaceAlphaMod(surface, 255);
 
    SDL_FillRect(surface, NULL, g_renderer.transparent_color_index);
+   
    return surface;
 }
 
@@ -771,8 +830,8 @@ static void resize_all_surfaces(void) {
    SDL_FreeSurface(g_renderer.composite_surface);
    g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
                   0,
-                  g_renderer.unit_map.x + g_renderer.unit_map.w,
-                  g_renderer.unit_map.y + g_renderer.unit_map.h,
+                  (g_renderer.unit_map.x * 2) + g_renderer.unit_map.w,
+                  (g_renderer.unit_map.y * 2) + g_renderer.unit_map.h,
                   32, SDL_PIXELFORMAT_RGBA8888);
    if (d_dne(g_renderer.composite_surface)) {
       d_err("couldn't recreate composite surface");
@@ -792,6 +851,7 @@ static void resize_all_surfaces(void) {
          d_log("new surface doesn't exist");
          return;
       }
+      d_logl(" (%dx%d)", layer->surface->w, layer->surface->h);
    }
    d_logl("\n");
    
@@ -810,42 +870,6 @@ static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index) {
    }
    
    SDL_FillRect(layer->surface, rect, color_index);
-}
-
-static void blit_masked_scaled(Layer* layer, ImageData* source, Rect src_rect,
-                              Rect dest_rect, uint8_t draw_color,
-                              uint8_t size, int clip_left, int clip_top) {
-   // say("dest_screen_rect = %s\n", d_name_rect(&dest_screen_rect));
-   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
-   int layer_pitch = layer->surface->pitch;
-
-   if (layer->can_draw_outside_viewport) {
-      dest_rect.x += g_renderer.unit_map.x;
-      dest_rect.y += g_renderer.unit_map.y;
-   }
-   
-   float x_scale = (float)dest_rect.w / src_rect.w;
-   float y_scale = (float)dest_rect.h / src_rect.h;
-   
-   for (int dest_y = 0; dest_y < dest_rect.h; dest_y++) {
-      for (int dest_x = 0; dest_x < dest_rect.w; dest_x++) {
-         // map destination pixel back to source
-         int src_x = (int)(dest_x / x_scale);
-         int src_y = (int)(dest_y / y_scale);
-         
-         // source pixel check with clipping
-         int source_pixel_x = src_rect.x + src_x + clip_left / size;
-         int source_pixel_y = src_rect.y + src_y + clip_top / size;
-         int src_offset = (source_pixel_y * source->width + source_pixel_x) * 4;
-         
-         if (source->data[src_offset + 1] > 128) continue; // transparent
-         
-         // draw the destination pixel
-         int screen_x = dest_rect.x + dest_x;
-         int screen_y = dest_rect.y + dest_y;
-         layer_pixels[screen_y * layer_pitch + screen_x] = draw_color;
-      }
-   }
 }
 
 static SDL_Color* get_palette_colors(void) {

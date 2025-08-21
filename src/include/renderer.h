@@ -68,10 +68,8 @@ typedef struct {
    
    DisplayResolution display_resolution;
    float scale_factor;
-   Rect unit_map;    // w,h based on DisplayResolution
-                     // x,y for offset
-   Rect window_map;  // w,h based on current window dims
-                     // x,y for offset
+   Rect unit_map;                   // w,h based on DisplayResolution (x,y is 0,0)
+   Rect window_map;                 // w,h based on viewport window dims (x,y for viewport offset)
    
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
@@ -176,7 +174,7 @@ void renderer_draw_system_quit(uint8_t duration_held);
 SDL_Surface* renderer_get_layer_surface(LayerHandle handle);
 void renderer_get_window_dims(int* width, int* height);
 void renderer_get_dims(int* width, int* height);
-void renderer_get_dims_full(int* width, int* height);
+void renderer_get_dims_full(int* width, int* height, int* x_offset, int* y_offset);
 bool renderer_is_in_viewport(int x, int y);
 const RendererState* renderer_get_debug_state(void);
 
