@@ -226,7 +226,7 @@ void title_scene_init(void) {
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_size(layer_test, 1);
    renderer_set_layer_size(layer_sized, 2);
-   renderer_set_layer_visible(layer_test, false);
+   // renderer_set_layer_visible(layer_test, false);
 }
 
 extern void game_shutdown(void);
@@ -251,7 +251,7 @@ void title_scene_handle_input(InputEvent event, InputState state, int device_id)
 void title_scene_update(float delta_time) {
    (void)delta_time;
    
-   renderer_get_logical_dimensions(&dimx, &dimy);
+   renderer_get_dims(&dimx, &dimy);
    
    // move amt pixels once per frame
    int amt = 1;
@@ -280,10 +280,9 @@ void title_scene_render(void) {
    renderer_clear();
    
    renderer_draw_rect(layer_sized, moving_box, box_color);
-   
+   Rect bg = {0, 0, dimx, dimy};
+   renderer_draw_rect(layer_bg, bg, 1);
    { // draw bg & borders
-      Rect bg = {0, 0, dimx, dimy};
-      renderer_draw_rect(layer_bg, bg, 1);
       
       Rect border1 = {0, 0, 640, 1};
       Rect border2 = {0, 0, 1, 480};
@@ -332,6 +331,7 @@ void title_scene_render(void) {
       renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
       renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
    }
+   
 }
 
 void title_scene_destroy(void) {
