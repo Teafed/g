@@ -1,5 +1,4 @@
 #include "debug.h"
-#include "renderer.h"
 #include "file.h"
 #include "input.h"
 #include "timing.h"
@@ -59,6 +58,12 @@ bool d__dne(void* ptr, const char* name, const char* func, const char* file, int
    return false;
 }
 
+const char* d_name_rect(Rect* rect) {
+   static char buffer[64];
+   snprintf(buffer, sizeof(buffer), "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
+   return buffer;
+}
+
 // RENDERER
 const char* d_name_display_resolution(DisplayResolution res) {
    static const char* names[] = { "RES_VGA", "RES_FWVGA" };
@@ -77,17 +82,6 @@ const char* d_name_display_mode(DisplayMode mode) {
       "DISPLAY_FULLSCREEN"
    };
    return (mode >= 0 && mode < 3) ? names[mode] : "UNKNOWN!";
-}
-
-const char* d_name_rect(Rect* rect) {
-   // NOTE can't call d_name_rect twice in one printf function, otherwise both arguments will output the same. alternate:
-   // void d_name_rect(Rect* rect, char* out, size_t size) {
-   //    snprintf(out, size, "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
-   // }
-   // just declare two char buffers before calling
-   static char buffer[64];
-   snprintf(buffer, sizeof(buffer), "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
-   return buffer;
 }
 
 const char* d_name_system_data(SystemData data) {
@@ -112,7 +106,7 @@ void d_print_renderer_dims(void) {
    d_var(g_renderer->composite_surface->w);
    d_var(g_renderer->composite_surface->h);
    d_logl("display_resolution = %s", d_name_display_resolution(g_renderer->display_resolution)); d_logl("\n");
-   d_logl("unit_map =        %s", d_name_rect(&unit_map)); d_logl("\n");
+   d_logl("unit_map =           %s", d_name_rect(&unit_map)); d_logl("\n");
    d_logl("window_map =         %s", d_name_rect(&window_map)); d_logl("\n");
    d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
    d_var(g_renderer->last_windowed_width);
