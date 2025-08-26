@@ -157,7 +157,6 @@ void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity);
 void renderer_set_layer_size(LayerHandle handle, uint8_t size);
 
 // drawing functions
-void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect, int dest_x, int dest_y, uint8_t color_index);
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index);
 void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index);
 void renderer_draw_rect_raw(Rect rect, uint8_t color_index);

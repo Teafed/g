@@ -14,7 +14,11 @@ static Layer* find_layer(LayerHandle handle);
 static SDL_Surface* create_layer_surface(bool can_draw_outside);
 static void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
+static void align_coords(int* x, int* y, uint8_t size);
+static void align_rect(Rect* rect, uint8_t size);
 static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index);
+static void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
+                                 int dest_x, int dest_y, uint8_t color_index);
 
 // TODO: mapping method and dirty rect marking
 
@@ -436,98 +440,6 @@ void renderer_set_layer_size(LayerHandle handle, uint8_t size) {
 }
 
 // DRAWING FUNCTIONS
-void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
-                          int dest_x, int dest_y, uint8_t color_index) {
-   if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
-   Layer* layer = find_layer(handle);
-   if (!layer || !layer->surface || !source) return;
-
-   // TODO: adjust this to align with layer size
-   Rect dest_rect = {
-      dest_x,
-      dest_y,
-      src_rect.w * layer->size,
-      src_rect.h * layer->size
-   };
-   
-   // bounds check
-   int lower_bound_x, lower_bound_y, upper_bound_x, upper_bound_y;
-   if (layer->can_draw_outside_viewport) {
-      // can draw anywhere on the surface, expressed in window coordinates
-      lower_bound_x = -g_renderer.unit_map.x;
-      lower_bound_y = -g_renderer.unit_map.y;
-      upper_bound_x = layer->surface->w - g_renderer.unit_map.x;
-      upper_bound_y = layer->surface->h - g_renderer.unit_map.y;
-   } else {
-      // can only draw within viewport
-      lower_bound_x = 0;
-      lower_bound_y = 0;
-      upper_bound_x = g_renderer.unit_map.w;
-      upper_bound_y = g_renderer.unit_map.h;
-   }
-
-   if (dest_rect.x + dest_rect.w <= lower_bound_x ||
-       dest_rect.y + dest_rect.h <= lower_bound_y ||
-       dest_rect.x >= upper_bound_x ||
-       dest_rect.y >= upper_bound_y) {
-      return;
-   }
-   
-   // TODO: adjust this to align with layer size
-   // clamp to drawing bounds
-   int clip_left   = (dest_rect.x < lower_bound_x) ? (lower_bound_x - dest_rect.x) : 0;
-   int clip_top    = (dest_rect.y < lower_bound_y) ? (lower_bound_y - dest_rect.y) : 0;
-   int clip_right  = (dest_rect.x + dest_rect.w > upper_bound_x) ?
-                     (dest_rect.x + dest_rect.w - upper_bound_x) : 0;
-   int clip_bottom = (dest_rect.y + dest_rect.h > upper_bound_y) ?
-                     (dest_rect.y + dest_rect.h - upper_bound_y) : 0;
-   
-   int src_clip_left = clip_left / layer->size;
-   int src_clip_top = clip_top / layer->size;
-   
-   // adjust destination rect
-   dest_rect.x += clip_left;
-   dest_rect.y += clip_top;
-   dest_rect.w -= (clip_left + clip_right);
-   dest_rect.h -= (clip_bottom + clip_top);
-   
-   if (dest_rect.w <= 0 || dest_rect.h <= 0) return;
-   
-   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
-   int layer_pitch = layer->surface->pitch;
-
-   if (layer->can_draw_outside_viewport) {
-      dest_rect.x += g_renderer.unit_map.x;
-      dest_rect.y += g_renderer.unit_map.y;
-   }
-   
-   for (int dest_y = 0; dest_y < dest_rect.h; dest_y++) {
-      for (int dest_x = 0; dest_x < dest_rect.w; dest_x++) {
-         // map destination pixel back to original unclipped position
-         int src_x = src_rect.x + src_clip_left + (dest_x / layer->size);
-         int src_y = src_rect.y + src_clip_top + (dest_y / layer->size);
-         
-         // bounds check for source image
-         if (src_x >= source->width || src_y >= source->height ||
-             src_x < 0 || src_y < 0) continue;
-         
-         int src_offset = (src_y * source->width + src_x) * 4;
-         
-         if (source->data[src_offset + 1] > 128) continue; // transparent
-         
-         // draw the destination pixel
-         int screen_x = dest_rect.x + dest_x;
-         int screen_y = dest_rect.y + dest_y;
-         
-         // bounds check for layer surface
-         if (screen_x >= 0 && screen_x < layer->surface->w && 
-             screen_y >= 0 && screen_y < layer->surface->h) {
-            layer_pixels[screen_y * layer_pitch + screen_x] = color_index;
-         }
-      }
-   }
-}
-
 void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
@@ -861,15 +773,123 @@ static void resize_all_surfaces(void) {
    return;
 }
 
-// TODO: align rects and pixels with layer size as well (double check pixel alignment)
+static void align_coords(int* x, int* y, uint8_t size) {
+   if (x) *x = (*x / size) * size;
+   if (y) *y = (*y / size) * size;
+}
+
+static void align_rect(Rect* rect, uint8_t size) {
+   if (!rect) return;
+   rect->w = (rect->w / size) * size;
+   rect->h = (rect->h / size) * size;
+   rect->x = (rect->x / size) * size;
+   rect->y = (rect->y / size) * size;
+}
+
 static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index) {
    /* assumes layer exists and color is in bounds */
-   if (rect && layer->can_draw_outside_viewport) {
-      rect->x += g_renderer.unit_map.x;
-      rect->y += g_renderer.unit_map.y;
+   Rect* adjusted_rect = rect;
+   if (adjusted_rect) {
+      if (layer->can_draw_outside_viewport) {
+         adjusted_rect->x += g_renderer.unit_map.x;
+         adjusted_rect->y += g_renderer.unit_map.y;
+      }
+      align_rect(adjusted_rect, layer->size);
+   }
+   SDL_FillRect(layer->surface, adjusted_rect, color_index);
+}
+
+static void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
+                          int dest_x, int dest_y, uint8_t color_index) {
+   if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
+   Layer* layer = find_layer(handle);
+   if (!layer || !layer->surface || !source) return;
+   
+   align_coords(&dest_x, &dest_y, layer->size);
+   
+   Rect dest_rect = {
+      dest_x,
+      dest_y,
+      src_rect.w * layer->size,
+      src_rect.h * layer->size
+   };
+   
+   // bounds check
+   int lower_bound_x, lower_bound_y, upper_bound_x, upper_bound_y;
+   if (layer->can_draw_outside_viewport) {
+      // can draw anywhere on the surface, expressed in window coordinates
+      lower_bound_x = -g_renderer.unit_map.x;
+      lower_bound_y = -g_renderer.unit_map.y;
+      upper_bound_x = layer->surface->w - g_renderer.unit_map.x;
+      upper_bound_y = layer->surface->h - g_renderer.unit_map.y;
+   } else {
+      // can only draw within viewport
+      lower_bound_x = 0;
+      lower_bound_y = 0;
+      upper_bound_x = g_renderer.unit_map.w;
+      upper_bound_y = g_renderer.unit_map.h;
+   }
+
+   if (dest_rect.x + dest_rect.w <= lower_bound_x ||
+       dest_rect.y + dest_rect.h <= lower_bound_y ||
+       dest_rect.x >= upper_bound_x ||
+       dest_rect.y >= upper_bound_y) {
+      return;
    }
    
-   SDL_FillRect(layer->surface, rect, color_index);
+   // TODO: adjust this to align with layer size
+   // clamp to drawing bounds
+   int clip_left   = (dest_rect.x < lower_bound_x) ? (lower_bound_x - dest_rect.x) : 0;
+   int clip_top    = (dest_rect.y < lower_bound_y) ? (lower_bound_y - dest_rect.y) : 0;
+   int clip_right  = (dest_rect.x + dest_rect.w > upper_bound_x) ?
+                     (dest_rect.x + dest_rect.w - upper_bound_x) : 0;
+   int clip_bottom = (dest_rect.y + dest_rect.h > upper_bound_y) ?
+                     (dest_rect.y + dest_rect.h - upper_bound_y) : 0;
+   
+   int src_clip_left = clip_left / layer->size;
+   int src_clip_top = clip_top / layer->size;
+   
+   // adjust destination rect
+   dest_rect.x += clip_left;
+   dest_rect.y += clip_top;
+   dest_rect.w -= (clip_left + clip_right);
+   dest_rect.h -= (clip_bottom + clip_top);
+   
+   if (dest_rect.w <= 0 || dest_rect.h <= 0) return;
+   
+   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
+   int layer_pitch = layer->surface->pitch;
+   
+   if (layer->can_draw_outside_viewport) {
+      dest_rect.x += g_renderer.unit_map.x;
+      dest_rect.y += g_renderer.unit_map.y;
+   }
+   
+   for (int dest_y = 0; dest_y < dest_rect.h; dest_y++) {
+      for (int dest_x = 0; dest_x < dest_rect.w; dest_x++) {
+         // map destination pixel back to original unclipped position
+         int src_x = src_rect.x + src_clip_left + (dest_x / layer->size);
+         int src_y = src_rect.y + src_clip_top + (dest_y / layer->size);
+         
+         // bounds check for source image
+         if (src_x >= source->width || src_y >= source->height ||
+             src_x < 0 || src_y < 0) continue;
+         
+         int src_offset = (src_y * source->width + src_x) * 4;
+         
+         if (source->data[src_offset + 1] > 128) continue; // transparent
+         
+         // draw the destination pixel
+         int screen_x = dest_rect.x + dest_x;
+         int screen_y = dest_rect.y + dest_y;
+         
+         // bounds check for layer surface
+         if (screen_x >= 0 && screen_x < layer->surface->w && 
+             screen_y >= 0 && screen_y < layer->surface->h) {
+            layer_pixels[screen_y * layer_pitch + screen_x] = color_index;
+         }
+      }
+   }
 }
 
 static SDL_Color* get_palette_colors(void) {
