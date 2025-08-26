@@ -218,15 +218,18 @@ int scene_get_stack_depth(void) {
 LayerHandle layer_bg, layer_test, layer_sized;
 int dimx = 0, dimy = 0;
 Rect moving_box = {0, 0, 100, 100};
-uint8_t box_color = 0;
+uint8_t box_color = 5;
 bool x_forward = true, y_forward = true;
+void update_dvd(Rect* rect, int amt);
+void draw_title(void);
+void draw_dvd(void);
+
 void title_scene_init(void) {
    layer_bg = renderer_create_layer(true);
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_size(layer_test, 1);
-   renderer_set_layer_size(layer_sized, 2);
-   // renderer_set_layer_visible(layer_test, false);
+   // renderer_set_layer_size(layer_bg, 1);
 }
 
 extern void game_shutdown(void);
@@ -250,88 +253,62 @@ void title_scene_handle_input(InputEvent event, InputState state, int device_id)
 
 void title_scene_update(float delta_time) {
    (void)delta_time;
+
+   update_dvd(&moving_box, 4);
+}
+
+void update_dvd(Rect* rect, int amt) {
+   void cycle_color() {
+      box_color = (box_color + 1) % (PALETTE_SIZE - 1);
+   }
    
    renderer_get_dims(&dimx, &dimy);
-   
-   // move amt pixels once per frame
-   int amt = 1;
    if (x_forward) {
-      if (moving_box.x + moving_box.w < dimx) moving_box.x += amt;
-      else { moving_box.x -= amt; x_forward = false; }
+      if (rect->x + rect->w < dimx) rect->x += amt;
+      else { rect->x -= amt; x_forward = false; cycle_color(); }
    } else {
-      if (moving_box.x >= 0) moving_box.x -= amt;
-      else { moving_box.x += amt; x_forward = true; }
+      if (rect->x >= 0) rect->x -= amt;
+      else { rect->x += amt; x_forward = true; cycle_color(); }
    }
    if (y_forward) {
-      if (moving_box.y + moving_box.h < dimy) moving_box.y += amt;
-      else { moving_box.y -= amt; y_forward = false; }
+      if (rect->y + rect->h < dimy) rect->y += amt;
+      else { rect->y -= amt; y_forward = false; cycle_color(); }
    } else {
-      if (moving_box.y >= 0) moving_box.y -= amt;
-      else { moving_box.y += amt; y_forward = true; }
-   }
-
-   // update box color every 16 frames
-   if (timing_get_frame_count() % 16 == 0) {
-      box_color = (box_color + 1) % (PALETTE_SIZE - 1); // -1 to ignore transparent
+      if (rect->y >= 0) rect->y -= amt;
+      else { rect->y += amt; y_forward = true; cycle_color(); }
    }
 }
 
 void title_scene_render(void) {
    renderer_clear();
    
+   draw_title();
+   draw_dvd();
+}
+
+void draw_dvd(void) {
    renderer_draw_rect(layer_sized, moving_box, box_color);
+   renderer_draw_string(layer_sized, FONT_ACER_8_8, "DVD", moving_box.x + 30, moving_box.y + 42, 4);
+}
+
+void draw_title(void) {
    Rect bg = {0, 0, dimx, dimy};
-   renderer_draw_rect(layer_bg, bg, 1);
-   { // draw bg & borders
-      
-      Rect border1 = {0, 0, 640, 1};
-      Rect border2 = {0, 0, 1, 480};
-      Rect border3 = {0, 479, 640, 1};
-      Rect border4 = {639, 0, 1, 480};
-         
-      renderer_draw_rect(layer_sized, border1, 9);
-      renderer_draw_rect(layer_sized, border2, 9);
-      renderer_draw_rect(layer_sized, border3, 9);
-      renderer_draw_rect(layer_sized, border4, 9);
-
-      for (int i = 0; i < 25; i++) {
-         renderer_draw_rect(layer_sized, (Rect){100 + (i * 16), 30, 16, 16}, (i % 2 == 0) ? 21 : 18);
-         renderer_draw_rect(layer_sized, (Rect){100 + (i * 16), 50, 16, 16}, (i % 2 == 0) ? 18 : 21);
-      }
-      renderer_draw_string(layer_sized, FONT_ACER_8_8, "This is the title screen.", 100, 30, 4);
-      renderer_draw_string(layer_sized, FONT_ACER_8_8, "   Press [j] to start.", 100, 50, 4);
-   }
+   renderer_draw_rect(layer_bg, bg, 0);
+   Rect border1 = {0, 0, 640, 1};
+   Rect border2 = {0, 0, 1, 480};
+   Rect border3 = {0, 479, 640, 1};
+   Rect border4 = {639, 0, 1, 480};
+   Rect title_rect = {90, 20, 420, 60};
    
-   { // misc testing
-      FontType font = FONT_ACER_8_8;
-      FontType font2 = FONT_COMPIS_8_16;
-      
-      const char* line1 = "! HEY EVERY    IT";
-      const char* line2 = "u hh is me :) hehe";
-      const char* line3 = "* H-hello...?";
-      const char* line4 = "* ...";
-      const char* line5 = "* Where am I...? I'm scared... Please...";
-      const char* line6 = "  I don't want to be a test string...";
-      Rect line1rect = {20, 207, 136, 9};
-      Rect line2rect = {20, 217, 144, 9};
-      renderer_draw_rect(layer_test, line1rect, 14);
-      renderer_draw_rect(layer_test, line2rect, 17);
-      renderer_draw_string(layer_test, font, line1, 20, 208, 4);
-      renderer_draw_string(layer_test, font, line2, 20, 218, 23);
-      
-      renderer_draw_string(layer_test, font2, line3, 190, 50, 13);
-      renderer_draw_string(layer_test, font2, line4, 190, 80, 13);
-      renderer_draw_string(layer_test, font2, line5, 190, 110, 13);
-      renderer_draw_string(layer_test, font2, line6, 190, 123, 13);
+   renderer_draw_rect(layer_sized, border1, 9);
+   renderer_draw_rect(layer_sized, border2, 9);
+   renderer_draw_rect(layer_sized, border3, 9);
+   renderer_draw_rect(layer_sized, border4, 9);
 
-      for (int i = 0; i < 25; i++) {
-         renderer_draw_rect(layer_test, (Rect){10 + (i * 8), 10, 8, 8}, (i % 2 == 0) ? 21 : 18);
-         renderer_draw_rect(layer_test, (Rect){10 + (i * 8), 20, 8, 8}, (i % 2 == 0) ? 18 : 21);
-      }
-      renderer_draw_string(layer_test, font, "This is the title screen.", 10, 10, 4);
-      renderer_draw_string(layer_test, font, "   Press [j] to start.", 10, 20, 4);
-   }
+   renderer_draw_rect(layer_sized, title_rect, 7);
    
+   renderer_draw_string(layer_sized, FONT_ACER_8_8, "This is the title screen.", 100, 30, 4);
+   renderer_draw_string(layer_sized, FONT_ACER_8_8, "   Press [j] to start.", 100, 55, 4);
 }
 
 void title_scene_destroy(void) {
