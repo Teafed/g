@@ -21,10 +21,13 @@ void    d__err(const char* func, const char* file, int line, const char* fmt, ..
 #define d_err(...) d__err(__func__, __FILE__, __LINE__, __VA_ARGS__)
 
 // TODO: make this check multiple variables
+// TODO: make a non-debug dne()?
 bool    d__dne(void* ptr, const char* name, const char* func, const char* file, int line);
 #define d_dne(ptr) d__dne((void*)(ptr), #ptr, __func__, __FILE__, __LINE__)
 
-// TODO: make one for rect
+#include "renderer.h"
+const char* d_name_rect(Rect* rect);
+
 static inline void d__var_int(int x, const char* name) {
    printf("%s = %d\n", name, x);
 }
@@ -40,6 +43,9 @@ static inline void d__var_char(char x, const char* name) {
 static inline void d__var_str(const char* x, const char* name) {
    printf("%s = \"%s\"\n", name, x);
 }
+static inline void d__var_rect(Rect* x, const char* name) {
+   printf("%s = %s\n", name, d_name_rect(x));
+}
 static inline void d__var_ptr(void* x, const char* name) {
    printf("%s = %p\n", name, x);
 }
@@ -51,12 +57,12 @@ static inline void d__var_ptr(void* x, const char* name) {
    double: d__var_float, \
    char: d__var_char, \
    const char*: d__var_str, \
+   Rect*: d__var_rect, \
    default: d__var_ptr \
 )(x, #x)
 
 // RENDERER
 #include "renderer.h" // for DisplayResolution, DisplayMode
-const char* d_name_rect(Rect* rect);
 const char* d_name_display_resolution(DisplayResolution res);
 const char* d_name_display_mode(DisplayMode mode);
 const char* d_name_system_data(SystemData data);
