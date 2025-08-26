@@ -107,11 +107,6 @@ typedef struct {
    int player1_device;
    int player2_device;
    
-   // timing
-   // TODO: update to use timing.h
-   float delta_time;
-   uint32_t frame_count;
-   
    // input buffering for reliability
    bool input_buffer_enabled;
    float input_buffer_time;  // time to buffer inputs (in ms)

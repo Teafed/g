@@ -15,7 +15,6 @@ void input_init(void) {
    g_input.current_context = CONTEXT_TITLE;
    g_input.input_buffer_enabled = true;
    g_input.input_buffer_time = 0.1f;  // 100ms input buffer
-   g_input.frame_count = 0;
 
    // initialize all devices as unknown and disconnected
    for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
@@ -33,9 +32,6 @@ void input_init(void) {
 
 extern void game_escape(uint32_t timer);
 void input_update(float delta_time) {
-   g_input.delta_time = delta_time;
-   g_input.frame_count++;
-   
    input_scan_devices(); // TODO: call this only if detect device activity?
 
    // update all input states for all devices
@@ -80,7 +76,7 @@ void input_update(float delta_time) {
    }
    
    // periodic cleanup
-   if (g_input.frame_count % 1800 == 0) {  // every 30 seconds at 60fps
+   if (timing_get_frame_count() % 1800 == 0) {  // every 30 seconds at 60fps
       input_cleanup_disconnected_devices();
    }
 }
@@ -99,7 +95,7 @@ void input_shutdown(void) {
 void input_scan_devices(void) {
    // device 0 is always keyboard
    g_input.devices[0].connected = true;
-   g_input.devices[0].last_seen_frame = g_input.frame_count;
+   g_input.devices[0].last_seen_frame = timing_get_frame_count();
    
    // scan for game controllers
    int num_joysticks = SDL_NumJoysticks();
@@ -137,7 +133,7 @@ void input_scan_devices(void) {
          }
          
          device->connected = (device->controller != NULL);
-         device->last_seen_frame = g_input.frame_count;
+         device->last_seen_frame = timing_get_frame_count();
          
          // remember device info
          input_remember_device(device_id, name, guid, sdl_idx);
@@ -174,7 +170,7 @@ void input_cleanup_disconnected_devices(void) {
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {
       InputDevice* device = &g_input.devices[i];
       if (!device->connected && 
-         (g_input.frame_count - device->last_seen_frame) > 1800) {  // 30 seconds at 60fps
+         (timing_get_frame_count() - device->last_seen_frame) > 1800) {  // 30 seconds at 60fps
          memset(&device->info, 0, sizeof(DeviceInfo));
       }
    }
