@@ -11,6 +11,8 @@ static Menu* last_active_menu = NULL; // to track when active menu changes
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size);
 static void process_action(MenuAction action, int data, int player);
 static void hide_all_layers(Menu* menu);
+static void menu_render_main(Menu* menu, int chain_position);
+static void menu_render_settings(Menu* menu, int chain_position);
 
 // CORE FUNCTIONS
 void menu_system_init(void) {
@@ -194,13 +196,13 @@ void menu_render(Menu* root) {
       // render based on menu type
       switch (menu->type) {
       case MENU_TYPE_MAIN:
-         menu_render_main_type(menu, chain_length - 1 - i); // pass position in chain
+         menu_render_main(menu, chain_length - 1 - i); // pass position in chain
+         break;
+      case MENU_TYPE_SETTINGS:
+         menu_render_settings(menu, chain_length - 1 - i);
          break;
       case MENU_TYPE_CHARSEL:
          // menu_render_charsel_type(menu);
-         break;
-      case MENU_TYPE_SETTINGS:
-         // menu_render_settings_type(menu);
          break;
       case MENU_TYPE_PAUSE:
          // menu_render_pause_type(menu);
@@ -208,46 +210,6 @@ void menu_render(Menu* root) {
       default:
          return;
       }
-   }
-}
-
-void menu_draw_menu(Menu* menu) { // TODO: customize
-   if (!menu) return;
-   
-   // clear the menu's layer
-   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
-
-   // case MENU_TYPE_MAIN
-   int title_x = 50;
-   int title_y = 30;
-   uint8_t title_color = 6;
-
-   int start_y = 80;
-   int line_width = 180;
-   int line_height = 25;
-   
-   // draw title
-   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, title_x, title_y, title_color); // orange-teaf
-   
-   for (int i = 0; i < menu->option_count; i++) {
-      MenuOption* opt = &menu->options[i];
-      int y = start_y + (i * line_height);
-      uint8_t color = opt->enabled ? 11 : 7;
-      
-      // highlight selected option for player 1
-      bool is_selected = (menu->selected_option[0] == i); // TODO: highlighting for both players
-      if (is_selected) {
-         // selection box
-         Rect select_rect = {title_x - 5, y - 3, line_width, line_height};
-         renderer_draw_rect(menu->layer_handle, select_rect, 13); // red-dark
-         // selected text color
-         color = 8; // brown-light
-      }
-      
-      // draw option text
-      char display_text[128];
-      format_option_text(opt, display_text, sizeof(display_text));
-      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, display_text, title_x, y, color);
    }
 }
 
@@ -524,7 +486,7 @@ static void hide_all_layers(Menu* menu) {
    }
 }
 
-void menu_render_main_type(Menu* menu, int chain_position) {
+static void menu_render_main(Menu* menu, int chain_position) {
    if (!menu) return;
    
    // clear the layer
@@ -535,8 +497,7 @@ void menu_render_main_type(Menu* menu, int chain_position) {
    int base_y = 50;
    
    // draw menu title
-   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, 
-                       base_x, base_y, 0);
+   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
    
    // draw options
    for (int i = 0; i < menu->option_count; i++) {
@@ -547,5 +508,34 @@ void menu_render_main_type(Menu* menu, int chain_position) {
       
       renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
                           base_x, base_y + 30 + (i * 20), color);
+   }
+}
+
+static void menu_render_settings(Menu* menu, int chain_position) {
+   if (!menu) return;
+   
+   // clear the menu's layer
+   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
+   
+   // calculate position based on chain position
+   int base_x = 50 + (chain_position * 200); // 200 pixels between columns
+   int base_y = 50;
+   
+   // draw menu title
+   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
+   
+   // draw options
+   for (int i = 0; i < menu->option_count; i++) {
+      uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
+      if (!menu->options[i].enabled) {
+         color = 3; // disabled color
+      }
+
+      int current_y = base_y + 30 + (i * 20);
+
+      // draw option text
+      char display_text[128];
+      format_option_text(&menu->options[i], display_text, sizeof(display_text));
+      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, display_text, base_x, current_y, color);
    }
 }

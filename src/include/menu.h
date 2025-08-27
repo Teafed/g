@@ -89,7 +89,6 @@ void menu_system_init(void); // called once in scene_init()
 Menu* menu_create(MenuType type, const char* title);
 void menu_handle_input(InputEvent event, InputState state, int device_id);
 void menu_render(Menu* root); // menu points to root
-void menu_draw_menu(Menu* menu); // renders a single menu
 void menu_destroy(Menu* menu); // called in x_scene_destroy()
 void menu_system_cleanup(void); // just set g_active_menu to NULL
 
@@ -112,7 +111,5 @@ void menu_set_active(Menu* menu);
 
 void menu_save_current_state(void); // when leaving a menu (scene change or going deeper)
 void menu_restore_state(Menu* menu); // when entering a menu
-
-void menu_render_main_type(Menu* menu, int chain_position);
 
 #endif
