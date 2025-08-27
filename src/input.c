@@ -1,3 +1,4 @@
+#include "timing.h"
 #include "input.h"
 #include "debug.h"
 #include <stdio.h>
@@ -391,6 +392,11 @@ void input_set_player_device(int player, int device_id) {
       g_input.player2_device = device_id;
       d_logv(2, "Player 2 assigned to device %d", device_id);
    }
+}
+
+void input_reset_player_devices(void) {
+   g_input.player1_device = -1;
+   g_input.player2_device = -1;
 }
 
 int input_get_player_device(int player) {

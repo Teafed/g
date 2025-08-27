@@ -148,6 +148,7 @@ const InputSystem* input_get_debug_state(void); // read-only pointer
 int input_find_device_by_guid(SDL_JoystickGUID guid);
 bool input_is_device_connected(int device_id);
 void input_set_player_device(int player, int device_id);
+void input_reset_player_devices(void); // unassign both
 int input_get_player_device(int player);
 int input_get_player(int device_id); // returns 0 if unassigned
 #endif
