@@ -3,8 +3,6 @@
 
 #include "input.h" // for InputEvent, InputState;
 
-#define MAX_SCENE_STACK_DEPTH 8
-
 typedef enum {
    SCENE_TITLE,
    SCENE_MAIN_MENU,
@@ -38,17 +36,7 @@ typedef struct {
    int selected_stage;                    // int for now, -1 if not selected
 } GameSession;
 
-// stores info about previous scenes
 typedef struct {
-   SceneType type;
-   int menu_position;                     // just UI state to restore
-   int player_devices[MAX_PLAYERS];       // -1 if CPU/not assigned
-} SceneStackEntry;
-
-// scene management with stack
-typedef struct {
-   SceneStackEntry stack[MAX_SCENE_STACK_DEPTH];
-   int stack_depth;
    SceneType current_scene;
    Scene scenes[SCENE_MAX];
    GameSession session;                   // global game state
@@ -62,18 +50,9 @@ void scene_render(void);
 void scene_destroy(void);
 
 // scene management
-void scene_push(SceneType new_scene);
-void scene_pop(void);
 void scene_change_to(SceneType type);
-
 void scene_start_game_session(GameModeType mode);
 void scene_reset_session(void);
-
-// utility functions
-GameSession* scene_get_session(void);
-SceneType scene_get_current_scene(void);
-SceneStackEntry* scene_get_scene_entry_at_index(int index);
-int scene_get_stack_depth(void);
 
 // note: init() sets up scene but doesn't draw
 //       render() always draws scene state

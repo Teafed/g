@@ -88,8 +88,6 @@ void d_print_devices(void);
 #include "scene.h"
 const char* d_name_scene_type(SceneType scene);
 const char* d_name_game_mode_type(GameModeType type);
-void d_print_scene_stack_entry(int index);
-void d_print_scene_stack(void);
 
 // MENU
 #include "menu.h"

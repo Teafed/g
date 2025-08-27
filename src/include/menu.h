@@ -30,8 +30,9 @@ typedef enum {
 
 typedef enum {
    MENU_ACTION_NONE,
-   MENU_ACTION_GAME_SETUP,    // action_data -> GameModeType
    MENU_ACTION_SCENE_CHANGE,  // action_data -> SceneType
+   MENU_ACTION_GAME_SETUP,    // action_data -> GameModeType
+                              // scene change to charsel
    MENU_ACTION_BACK,
    MENU_ACTION_QUIT,
    MENU_ACTION_MAX

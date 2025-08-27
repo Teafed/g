@@ -208,7 +208,6 @@ void d_print_devices(void) {
    printf("\n=== INPUT DEVICES DEBUG ===\n");
    printf("Player 1 device: %d\n", g_input->player1_device);
    printf("Player 2 device: %d\n", g_input->player2_device);
-   printf("Frame: %u\n", g_input->frame_count);
    
    for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
       const InputDevice* device = &g_input->devices[i];
@@ -255,38 +254,6 @@ const char* d_name_scene_type(SceneType type) {
    return (type < SCENE_MAX) ? names[type] : "UNKNOWN!";
 }
 
-void d_print_scene_stack_entry(int index) {
-   if (index < 0) return;
-   
-   if (index < scene_get_stack_depth() && LOG_VERBOSITY >= LOG_VERBOSE) {
-      SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-      d_log("");
-      d_logl("%s", d_name_scene_type(scene->type));
-      d_logl(" | P1 = %d", scene->player_devices[0]);
-      d_logl(" | P2 = %d", scene->player_devices[1]);
-      d_logl(" | pos = %d\n", scene->menu_position);
-   }
-   /* else if (index < MAX_SCENE_STACK_DEPTH) {
-      SceneStackEntry* scene = scene_get_scene_entry_at_index(index);
-      d_log("");
-      d_logl("%s", d_name_scene_type(scene->type));
-      d_logl(" | P1 = %d", scene->player_devices[0]);
-      d_logl(" | P2 = %d", scene->player_devices[1]);
-      d_logl(" | pos = %d ***\n", scene->menu_position
-   }*/
-}
-
-void d_print_scene_stack(void) {
-   // e.g. versus, if using keyboard from menu but choosing controller1 for left and keyboard for right
-   //       (note device select is not in scene stack)
-   // SCENE_TITLE | P1 = -1 | P2 = -1 | pos = 0
-   // SCENE_MAIN_MENU | P1 = 0 | P2 = -1 | pos = 3
-   // SCENE_CHARACTER_SELECT | P1 = 1 | P2 = 0 | pos = 0
-   for (int i = 0; i < MAX_SCENE_STACK_DEPTH; i++) {
-      d_print_scene_stack_entry(i);
-   }
-}
-
 // MENU
 const char* d_name_menu_type(MenuType type) {
    static const char* names[] = {
@@ -314,8 +281,8 @@ const char* d_name_option_type(OptionType type) {
 const char* d_name_menu_action(MenuAction action) {
    static const char* names[] = {
       "MENU_ACTION_NONE",
-      "MENU_ACTION_GAME_SETUP",
       "MENU_ACTION_SCENE_CHANGE",
+      "MENU_ACTION_GAME_SETUP",
       "MENU_ACTION_BACK",
       "MENU_ACTION_QUIT",
       "MENU_ACTION_MAX"

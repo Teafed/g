@@ -1,6 +1,7 @@
 #include "menu.h"
 #include "renderer.h"
 #include "file.h"
+#include "scene.h"
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
@@ -447,14 +448,20 @@ static void process_action(MenuAction action, int data, int player) {
    switch (action) {
    case MENU_ACTION_SCENE_CHANGE:
       // change to scene specified in data
-      // TODO: this!!!!!!
       d_logv(2, "SceneType = %s", d_name_scene_type(data));
+      if (data < 0 || data >= SCENE_MAX) {
+         d_log("invalid scene");
+         return;
+      }
+      scene_change_to(data);
       break;
       
    case MENU_ACTION_GAME_SETUP:
       // setup game with mode specified in data
       // TODO: this!!!!!!
       d_logv(2, "GameModeType = %s", d_name_game_mode_type(data));
+      scene_start_game_session(data);
+      scene_change_to(SCENE_CHARACTER_SELECT);
       break;
       
    case MENU_ACTION_BACK:
@@ -462,6 +469,7 @@ static void process_action(MenuAction action, int data, int player) {
       if (g_active_menu && g_active_menu->parent) {
          menu_navigate_to_parent(g_active_menu, player);
       }
+      // TODO: if it's a pause menu or other floating type menu, close if !g_active_menu->parent
       break;
       
    case MENU_ACTION_QUIT:

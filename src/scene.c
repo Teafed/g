@@ -33,6 +33,12 @@ void scene_init(void) {
    scene_manager.scenes[SCENE_MAIN_MENU].render = main_menu_scene_render;
    scene_manager.scenes[SCENE_MAIN_MENU].destroy = main_menu_scene_destroy;
    
+   // setup settings scene
+   scene_manager.scenes[SCENE_SETTINGS].init = settings_scene_init;
+   scene_manager.scenes[SCENE_SETTINGS].update = settings_scene_update;
+   scene_manager.scenes[SCENE_SETTINGS].render = settings_scene_render;
+   scene_manager.scenes[SCENE_SETTINGS].destroy = settings_scene_destroy;
+   
    // setup character select scene
    scene_manager.scenes[SCENE_CHARACTER_SELECT].init = character_select_scene_init;
    scene_manager.scenes[SCENE_CHARACTER_SELECT].update = character_select_scene_update;
@@ -45,16 +51,8 @@ void scene_init(void) {
    scene_manager.scenes[SCENE_GAMEPLAY].render = gameplay_scene_render;
    scene_manager.scenes[SCENE_GAMEPLAY].destroy = gameplay_scene_destroy;
    
-   // setup settings scene
-   scene_manager.scenes[SCENE_SETTINGS].init = settings_scene_init;
-   scene_manager.scenes[SCENE_SETTINGS].update = settings_scene_update;
-   scene_manager.scenes[SCENE_SETTINGS].render = settings_scene_render;
-   scene_manager.scenes[SCENE_SETTINGS].destroy = settings_scene_destroy;
-   
-   // initialize first scene - start with title screen
+   // initialize first scene
    scene_manager.current_scene = SCENE_TITLE;
-   input_set_context(CONTEXT_TITLE); // route input to title_scene_handle_input()
-   scene_manager.stack_depth = 0;
    if (scene_manager.scenes[SCENE_TITLE].init) {
       scene_manager.scenes[SCENE_TITLE].init();
    }
@@ -79,99 +77,19 @@ void scene_destroy(void) {
    menu_system_cleanup();
 }
 
-// scenes are only added to the stack once the scene ends
-// call this BEFORE reassigning p1 & p2 devices, if that happens on a scene change
-void scene_push(SceneType new_scene) {
-   // save current scene state to stack
-   if (scene_manager.stack_depth < MAX_SCENE_STACK_DEPTH) {
-      SceneStackEntry* entry = &scene_manager.stack[scene_manager.stack_depth];
-      entry->type = scene_manager.current_scene;
-      entry->player_devices[0] = input_get_player_device(1);
-      entry->player_devices[1] = input_get_player_device(2);
-      
-      // save current scene's UI state & player assignment
-      switch (scene_manager.current_scene) {
-      /* planning on redoing memory
-      case SCENE_MAIN_MENU:
-         entry->menu_position = menu_get_cursor_position();
-         break;
-      case SCENE_CHARACTER_SELECT:
-         entry->menu_position = menu_get_cursor_position();
-         break;
-      case SCENE_SETTINGS:
-         entry->menu_position = menu_get_cursor_position();
-         break;
-      */
-      default:
-         entry->menu_position = 0;
-         break;
-      }
-      scene_manager.stack_depth++;
-   }
-   else
-      d_err("tried to push a scene but it was too much");
-   
-   // transition to new scene
-   scene_change_to(new_scene);
-   
-   d_logv(3, "scene_push() called:");
-   d_print_scene_stack();
-}
-
-void scene_pop(void) {
-   if (scene_manager.stack_depth > 0) {
-      scene_manager.stack_depth--;
-      SceneStackEntry* entry = &scene_manager.stack[scene_manager.stack_depth];
-      
-      // previous device assignment and scene
-      input_set_player_device(1, scene_manager.stack[scene_manager.stack_depth].player_devices[0]);
-      input_set_player_device(2, scene_manager.stack[scene_manager.stack_depth].player_devices[1]);
-      
-      // go back to previous scene
-      scene_change_to(entry->type);
-
-      // TODO: i think the problem with going back a scene n remembering cursor pos is here
-      switch (entry->type) {
-         case SCENE_TITLE:
-            // nothing i guess
-            break;
-            /* redoing this
-         case SCENE_MAIN_MENU:
-            // this might be broken
-            menu_set_cursor_position(entry->menu_position);
-            break;
-         case SCENE_CHARACTER_SELECT:
-            menu_set_cursor_position(entry->menu_position);
-            break;
-         case SCENE_SETTINGS:
-            menu_set_cursor_position(entry->menu_position);
-            break;
-         */
-         default:
-            break;
-      }
-
-      d_logv(3, "scene_pop():");
-      d_print_scene_stack();
-   }
-}
-
-// only use when you don't need to return to the previous scene
-// forward and back scene navigation uses scene_push() and scene_pop()
 void scene_change_to(SceneType type) {
    d_logv(2, "changing scene from %s to %s", d_name_scene_type(scene_manager.current_scene), d_name_scene_type(type));
    if (type >= SCENE_MAX) {
-      d_err("couldn't change scenes");
+      d_err("invalid scene");
       return;
    }
-   // destroy current scene
+   
    if (scene_manager.scenes[scene_manager.current_scene].destroy) {
       scene_manager.scenes[scene_manager.current_scene].destroy();
    }
 
    scene_manager.current_scene = type;
    
-   // initialize new scene
    if (scene_manager.scenes[scene_manager.current_scene].init) {
       scene_manager.scenes[scene_manager.current_scene].init();
    }
@@ -193,24 +111,6 @@ void scene_reset_session(void) {
    scene_manager.session.valid = false;
 }
 
-// UTILITY
-SceneType scene_get_current_scene(void) {
-   return scene_manager.current_scene;
-}
-
-SceneStackEntry* scene_get_scene_entry_at_index(int index) {
-   SceneStackEntry* scene = &scene_manager.stack[index];
-   return scene;
-}
-
-GameSession* scene_get_session(void) {
-    return &scene_manager.session;
-}
-
-int scene_get_stack_depth(void) {
-   return scene_manager.stack_depth;
-}
-
 // ============================================================================
 // TITLE SCENE
 // ============================================================================
@@ -230,6 +130,9 @@ void title_scene_init(void) {
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_size(layer_test, 1);
    // renderer_set_layer_size(layer_bg, 1);
+
+   input_reset_player_devices();
+   input_set_context(CONTEXT_TITLE);
 }
 
 extern void game_shutdown(void);
@@ -238,12 +141,11 @@ void title_scene_handle_input(InputEvent event, InputState state, int device_id)
    if (event == INPUT_START || event == INPUT_A) {
       // first input detected - assign as player 1
       if (input_get_player_device(1) == -1) {
-         scene_push(SCENE_MAIN_MENU);
+         scene_change_to(SCENE_MAIN_MENU);
          input_set_player_device(1, device_id);
       }
       else {
          d_log("for some reason player device 1 is already assigned on the main menu... that sohuldn't be");
-         // d_print_scene_stack();
       }
    }
    else if (event == INPUT_B || event == INPUT_SELECT) {
@@ -255,6 +157,19 @@ void title_scene_update(float delta_time) {
    (void)delta_time;
 
    update_dvd(&moving_box, 4);
+}
+
+void title_scene_render(void) {
+   renderer_clear();
+   
+   draw_title();
+   draw_dvd();
+}
+
+void title_scene_destroy(void) {
+   renderer_destroy_layer(layer_sized);
+   renderer_destroy_layer(layer_test);
+   renderer_destroy_layer(layer_bg);
 }
 
 void update_dvd(Rect* rect, int amt) {
@@ -277,13 +192,6 @@ void update_dvd(Rect* rect, int amt) {
       if (rect->y >= 0) rect->y -= amt;
       else { rect->y += amt; y_forward = true; cycle_color(); }
    }
-}
-
-void title_scene_render(void) {
-   renderer_clear();
-   
-   draw_title();
-   draw_dvd();
 }
 
 void draw_dvd(void) {
@@ -311,21 +219,11 @@ void draw_title(void) {
    renderer_draw_string(layer_sized, FONT_ACER_8_8, "   Press [j] to start.", 100, 55, 4);
 }
 
-void title_scene_destroy(void) {
-   renderer_destroy_layer(layer_sized);
-   renderer_destroy_layer(layer_test);
-   renderer_destroy_layer(layer_bg);
-}
-
 // ============================================================================
 // MAIN MENU SCENE
 // ============================================================================
 
 static Menu* main_menu = NULL;
-
-void main_menu_handle_scene_change(SceneType new_scene);
-void main_menu_handle_game_setup(GameModeType mode);
-void main_menu_update_input_display(void);
 
 void main_menu_scene_init(void) {
    main_menu = menu_create(MENU_TYPE_MAIN, "MAIN MENU");
@@ -347,7 +245,6 @@ void main_menu_scene_init(void) {
 
 void main_menu_scene_update(float delta_time) {
    (void)delta_time;
-   main_menu_update_input_display();
 }
 
 void main_menu_scene_render(void) {
@@ -359,22 +256,48 @@ void main_menu_scene_destroy(void) {
    menu_destroy(main_menu); // TODO: make this destroy children as well
 }
 
-void main_menu_handle_scene_change(SceneType new_scene) {
-   switch (new_scene) {
-   case SCENE_SETTINGS:
-      scene_push(SCENE_SETTINGS);
-      break;
-   case SCENE_TITLE:
-      scene_pop();
-      break;
-   default:
-      d_log("unhandled scene change");
-   }
+// ============================================================================
+// SETTINGS SCENE
+// ============================================================================
+
+static Menu* settings_menu = NULL;
+
+bool g_sound_enabled = true;
+int g_master_volume = 90;
+int g_resolution = 0; // TODO: these are just temp, get from renderer
+int g_display_mode = 0;
+int g_resize_mode = 0;
+void update_input_display(void);
+
+void settings_scene_init(void) {
+   settings_menu = menu_create(MENU_TYPE_SETTINGS, "SYSTEM SETTINGS");
+   
+   menu_add_toggle_option(settings_menu, "SOUND ENABLED", &g_sound_enabled);
+   menu_add_slider_option(settings_menu, "MASTER VOLUME", &g_master_volume, 0, 100, 1);
+   char* resolution_choices[] = {"VGA", "FWVGA"};
+   menu_add_choice_option(settings_menu, "RESOLUTION", resolution_choices, 2, &g_resolution);
+   char* display_choices[] = {"WINDOWED", "BORDERLESS", "FULLSCREEN"};
+   menu_add_choice_option(settings_menu, "WINDOW MODE", display_choices, 3, &g_display_mode);
+   char* resize_choices[] = {"FIT", "FIXED"};
+   menu_add_choice_option(settings_menu, "RESIZE MODE", resize_choices, 3, &g_resize_mode);
+   menu_add_action_option(settings_menu, "BACK", MENU_ACTION_SCENE_CHANGE, SCENE_MAIN_MENU);
+   
+   menu_set_active(settings_menu);
+   input_set_context(CONTEXT_MENU);
 }
 
-void main_menu_handle_game_setup(GameModeType mode) {
-   scene_push(SCENE_CHARACTER_SELECT);
-   scene_start_game_session(mode);
+void settings_scene_update(float delta_time) {
+   (void)delta_time;
+   update_input_display();
+}
+
+void settings_scene_render(void) {
+   renderer_clear();
+   menu_render(settings_menu);
+}
+
+void settings_scene_destroy(void) {
+   menu_destroy(settings_menu); // TODO: make this destroy children as well
 }
 
 typedef struct {
@@ -425,7 +348,7 @@ InputDisplayConfig dev_3[] = {
    {INPUT_D, 73, 13, 'D', 30}
 };
 
-void main_menu_update_input_display(void) {
+void update_input_display(void) {
    // runs every frame to show current input states
    // !!! renderer_fill_rect(50, 5, 15, 10, ' ', 0, 4);  // device 0
    // !!! renderer_draw_string(50, 5, "DEVICE 0:", 15, 4);
@@ -469,9 +392,10 @@ void character_select_render(void);
 void character_select_handle_scene_change(SceneType new_scene);
 
 void character_select_scene_init(void) {
+   // TODO: change setup based on GameModeType (already set menu's process_action()
+   
    // setup for device select
-   input_set_player_device(1, -1);
-   input_set_player_device(2, -1);
+   input_reset_player_devices();
    scene_manager.session.confirmed_devices = false;
 
    // setup for character menu
@@ -591,66 +515,19 @@ void character_select_render(void) {
 
 void character_select_handle_scene_change(SceneType new_scene) {
    if (!scene_manager.session.confirmed_devices) {
-      scene_pop();
+      scene_change_to(SCENE_MAIN_MENU);
       return;
    }
    
    switch (new_scene) {
    case SCENE_MAIN_MENU:
-      scene_pop();
+      scene_change_to(SCENE_MAIN_MENU);
       break;
    case SCENE_GAMEPLAY:
-      scene_push(SCENE_GAMEPLAY);
+      scene_change_to(SCENE_GAMEPLAY);
       break;
    default:
       d_log("unhandled scene change");
-   }
-}
-
-// ============================================================================
-// SETTINGS SCENE
-// ============================================================================
-
-static Menu* settings_menu = NULL;
-
-bool g_sound_enabled = true;
-int g_master_volume = 90;
-int g_resolution = 0; // TODO: these are just temp, get from renderer
-int g_display_mode = 0;
-int g_resize_mode = 0;
-
-void settings_scene_init(void) {
-   settings_menu = menu_create(MENU_TYPE_SETTINGS, "SYSTEM SETTINGS");
-   
-   menu_add_toggle_option(settings_menu, "SOUND ENABLED", &g_sound_enabled);
-   menu_add_slider_option(settings_menu, "MASTER VOLUME", &g_master_volume, 0, 100, 5);
-   char* resolution_choices[] = {"VGA", "FWVGA"};
-   menu_add_choice_option(settings_menu, "RESOLUTION", resolution_choices, 2, &g_resolution);
-   char* display_choices[] = {"window", "borderless", "fullscreen"};
-   menu_add_choice_option(settings_menu, "DISPLAY MODE", display_choices, 3, &g_display_mode);
-   char* resize_choices[] = {"fit", "fixed"};
-   menu_add_choice_option(settings_menu, "RESIZE MODE", resize_choices, 3, &g_resize_mode);
-   menu_add_action_option(settings_menu, "BACK", MENU_ACTION_SCENE_CHANGE, SCENE_MAIN_MENU);
-   
-   menu_set_active(settings_menu);
-   input_set_context(CONTEXT_MENU);
-}
-
-void settings_scene_update(float delta_time) {
-   (void)delta_time;
-}
-
-void settings_scene_render(void) {
-   // 
-}
-
-void settings_scene_destroy(void) {
-   menu_destroy(settings_menu); // TODO: make this destroy children as well
-}
-
-void settings_handle_scene_change(SceneType new_scene) {
-   if (new_scene == SCENE_MAIN_MENU) {
-      scene_pop();
    }
 }
 
