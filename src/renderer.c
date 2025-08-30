@@ -11,16 +11,15 @@ static void draw_system_header(int* x, int* y);
 static void draw_system_data(SystemData data, int* x, int* y);
 static void calculate_mapping(void);
 static Layer* find_layer(LayerHandle handle);
+static Layer* find_layer_by_index(ui32 index);
 static SDL_Surface* create_layer_surface(bool can_draw_outside);
 static void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
-static void align_coords(int* x, int* y, uint8_t size);
-static void align_rect(Rect* rect, uint8_t size);
-static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index);
+static void align_coords(int* x, int* y, ui8 size);
+static void align_rect(Rect* rect, ui8 size);
+static void blit_rect(Layer* layer, Rect* rect, ui8 color_index);
 static void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
-                                 int dest_x, int dest_y, uint8_t color_index);
-
-// TODO: mapping method and dirty rect marking
+                                 int dest_x, int dest_y, ui8 color_index);
 
 // CORE FUNCTIONS
 bool renderer_init(float scale_factor) {
@@ -154,20 +153,20 @@ void renderer_cleanup(void) {
 void renderer_clear(void) {
    if (!g_renderer.initialized) return;
    SDL_FillRect(g_renderer.composite_surface, NULL, palette[g_renderer.clear_color_index]); // clear composite
-   for (int i = 1; i < g_renderer.layer_count; i++) {
-      Layer* layer = &g_renderer.layers[i];
+   for (ui32 i = 0; i < g_renderer.layer_count; i++) {
+      Layer* layer = find_layer_by_index(i);
       if (!layer) continue;
-      renderer_draw_fill(i, g_renderer.transparent_color_index);
+      renderer_draw_fill(layer->handle, g_renderer.transparent_color_index);
    }
 }
 
 extern void scene_render(void);
 void renderer_present(void) {   
    if (!g_renderer.initialized) return;
-   // d_print_renderer_dims();
+   
    if (g_renderer.resize_in_progress) {
-      uint32_t current_time = timing_get_game_time_ms();
-      uint32_t time_since_resize = current_time - g_renderer.resize_start_time;
+      ui32 current_time = timing_get_game_time_ms();
+      ui32 time_since_resize = current_time - g_renderer.resize_start_time;
       
       if (time_since_resize >= g_renderer.resize_delay_ms) {
          d_log("resized, scale factor = %f", g_renderer.scale_factor);
@@ -183,14 +182,15 @@ void renderer_present(void) {
          return;
       }
    }
-   SDL_FillRect(g_renderer.composite_surface, NULL, g_renderer.clear_color_index);
    
+   renderer_clear();
+      
    scene_render(); // get all rendering calls from current scene
    
    // composite all visible layers
-   for (int i = 0; i < g_renderer.layer_count; i++) {
-      Layer* layer = &g_renderer.layers[i];
-      if (!layer->visible || layer->handle == g_renderer.system_layer_handle) continue;
+   for (ui32 i = 0; i < g_renderer.layer_count; i++) {
+      Layer* layer = find_layer_by_index(i);
+      if (!layer || !layer->visible || layer->handle == g_renderer.system_layer_handle) continue;
       
       SDL_SetSurfaceAlphaMod(layer->surface, layer->opacity);
       
@@ -203,8 +203,9 @@ void renderer_present(void) {
 
    // draw system layer
    Layer* system_layer = find_layer(g_renderer.system_layer_handle);
+   // if (false) {
    if (system_layer->visible) {
-      /* header */
+      // header
       int x = -g_renderer.unit_map.x;
       int y = -g_renderer.unit_map.y;
       x += (1 * system_layer->size);
@@ -213,7 +214,7 @@ void renderer_present(void) {
       y += (8 * system_layer->size);
       y += 2; // padding
 
-      /* system data */
+      // system data
       for (int i = 0; i < SYS_MAX; i++) {
          if (g_renderer.system_layer_data[i]) {
             draw_system_data(i, &x, &y);
@@ -222,7 +223,9 @@ void renderer_present(void) {
       SDL_BlitSurface(system_layer->surface, NULL, g_renderer.composite_surface, NULL);
    }
    
-   SDL_FillRect(g_renderer.window_surface, NULL, g_renderer.clear_color_index);
+   // TODO: figure out the window surface format
+   // SDL_FillRect(g_renderer.window_surface, NULL, palette[g_renderer.clear_color_index]);
+   // SDL_FillRect(g_renderer.window_surface, NULL, palette[10]);
    SDL_BlitScaled(g_renderer.composite_surface, NULL,
                  g_renderer.window_surface, NULL);
    SDL_UpdateWindowSurface(g_renderer.window);
@@ -325,7 +328,7 @@ void renderer_set_resize_mode(ResizeMode mode) {
    g_renderer.resize_mode = mode;
 }
 
-void renderer_set_clear_color(uint8_t color_index) {
+void renderer_set_clear_color(ui8 color_index) {
    if (!g_renderer.initialized) return;
    
    g_renderer.clear_color_index = color_index;
@@ -363,7 +366,7 @@ LayerHandle renderer_create_layer(bool can_draw_outside) {
       
    g_renderer.layer_count++;
    
-   d_logv(2, "created layer %u", layer->handle);
+   d_logv(2, "created layer %u (total %d)", layer->handle, g_renderer.layer_count);
    
    return layer->handle;
 }
@@ -374,9 +377,9 @@ void renderer_destroy_layer(LayerHandle handle) {
    
    // get layer
    int layer_index = -1;
-   for (int i = 0; i < g_renderer.layer_count; i++) {
+   for (ui32 i = 0; i < g_renderer.layer_count; i++) {
       if (g_renderer.layers[i].handle == handle) {
-         layer_index = i;
+         layer_index = (int)i;
          break;
       }
    }
@@ -394,14 +397,14 @@ void renderer_destroy_layer(LayerHandle handle) {
    }
    
    // remove from array, shift elements
-   for (int i = layer_index; i < g_renderer.layer_count - 1; i++) {
+   for (ui32 i = layer_index; i < g_renderer.layer_count - 1; i++) {
       g_renderer.layers[i] = g_renderer.layers[i + 1];
    }
    g_renderer.layer_count--;
    
    memset(&g_renderer.layers[g_renderer.layer_count], 0, sizeof(Layer));
    
-   d_logv(2, "destroyed layer %u", handle);
+   d_logv(2, "destroyed layer %u (total %d)", handle, g_renderer.layer_count);
 }
 
 void renderer_set_layer_draw_outside(LayerHandle handle, bool can_draw) {
@@ -425,14 +428,14 @@ void renderer_set_layer_visible(LayerHandle handle, bool visible) {
    }
 }
 
-void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity) {
+void renderer_set_layer_opacity(LayerHandle handle, ui8 opacity) {
    Layer* layer = find_layer(handle);
    if (layer && opacity != layer->opacity) {
       layer->opacity = opacity;
    }
 }
 
-void renderer_set_layer_size(LayerHandle handle, uint8_t size) {
+void renderer_set_layer_size(LayerHandle handle, ui8 size) {
    Layer* layer = find_layer(handle);
    if (layer && size != layer->size && size != 0) {
       layer->size = size;
@@ -440,7 +443,7 @@ void renderer_set_layer_size(LayerHandle handle, uint8_t size) {
 }
 
 // DRAWING FUNCTIONS
-void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) {
+void renderer_draw_pixel(LayerHandle handle, int x, int y, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface) return;
@@ -448,7 +451,7 @@ void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index) 
    blit_rect(layer, &pixel, color_index);
 }
 
-void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
+void renderer_draw_rect(LayerHandle handle, Rect rect, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface) return;
@@ -456,21 +459,22 @@ void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index) {
    blit_rect(layer, &rect, color_index);
 }
 
-void renderer_draw_rect_raw(Rect rect, uint8_t color_index) {
+void renderer_draw_rect_raw(Rect rect, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    
-   SDL_FillRect(g_renderer.composite_surface, &rect, color_index);
+   SDL_FillRect(g_renderer.composite_surface, &rect, palette[color_index]);
 }
 
-void renderer_draw_fill(LayerHandle handle, uint8_t color_index) {
+void renderer_draw_fill(LayerHandle handle, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
+   
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface) return;
    
    blit_rect(layer, NULL, color_index);
 }
 
-void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index) {
+void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
    Font* font = file_get_font(&g_renderer.font_array, font_type);
@@ -497,7 +501,7 @@ void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, i
    renderer_blit_masked(handle, font->data, src_rect, x, y, color_index);
 }
 
-void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, uint8_t color_index) {
+void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, ui8 color_index) {
    if (g_renderer.resize_in_progress || !str || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
    Font* font = file_get_font(&g_renderer.font_array, font_type);
@@ -538,18 +542,18 @@ void renderer_toggle_system_data(SystemData data, bool display) {
 }
 
 static void draw_system_header(int* x, int* y) {
-   uint8_t color = 0; // mono-white
+   ui8 color = 0; // mono-white
    renderer_draw_string(g_renderer.system_layer_handle, FONT_SHARP_8_8, "teaf/g v0.01", *x, *y, color);
 }
 
 static void draw_system_data(SystemData data, int* x, int* y) {
    LayerHandle handle = g_renderer.system_layer_handle;
    // Layer* layer = find_layer(handle);
-   uint8_t size = find_layer(handle)->size;
+   ui8 size = find_layer(handle)->size;
    int new_line = 8 * size; // TODO: get font tile height
    new_line += 2; // padding
    FontType font = FONT_SHARP_8_8;
-   uint8_t color = 0; // mono-white
+   ui8 color = 0; // mono-white
    char buffer[128];
    
    switch (data) {
@@ -561,7 +565,7 @@ static void draw_system_data(SystemData data, int* x, int* y) {
       break;
       
    case SYS_AVG_FPS:
-      uint32_t min_ms = 0, max_ms = 0, avg_ms = 0, frames_over = 0;
+      ui32 min_ms = 0, max_ms = 0, avg_ms = 0, frames_over = 0;
       char buffer[128];
       timing_get_performance_info(&min_ms, &max_ms, &avg_ms, &frames_over);
       
@@ -588,7 +592,7 @@ static void draw_system_data(SystemData data, int* x, int* y) {
    }
 }
 
-void renderer_draw_system_quit(uint8_t duration_held) {
+void renderer_draw_system_quit(ui8 duration_held) {
    LayerHandle handle = g_renderer.system_layer_handle;
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface) return;
@@ -596,7 +600,7 @@ void renderer_draw_system_quit(uint8_t duration_held) {
    // if (duration_held == 0) { renderer_set_layer_visible(handle, false); return; }
    // else if (!layer->visible) renderer_set_layer_visible(handle, true);
 
-   uint8_t color = 0;
+   ui8 color = 0;
    if (duration_held < 64) color = 3;
    else if (duration_held < 128) color = 2;
    else if (duration_held < 192) color = 1;
@@ -667,6 +671,9 @@ static void calculate_mapping(void) {
    case RESIZE_FIT: {
       float viewport_aspect = (float)g_renderer.unit_map.w / g_renderer.unit_map.h;
       float window_aspect = (float)g_renderer.window_surface->w / g_renderer.window_surface->h;
+
+      g_renderer.window_map.w = g_renderer.window_surface->w;
+      g_renderer.window_map.h = g_renderer.window_surface->h;
       
       if (viewport_aspect < window_aspect) {
          // letterbox left/right
@@ -698,20 +705,30 @@ static void calculate_mapping(void) {
       break;
    }
    
-   d_logv(2, "unit_map: %s", d_name_rect(&g_renderer.unit_map));
-   d_logv(2, "window_map: %s", d_name_rect(&g_renderer.window_map));
-   d_logv(2, "scale_factor: %f", g_renderer.scale_factor);
+   d_logv(3, "unit_map: %s", d_name_rect(&g_renderer.unit_map));
+   d_logv(3, "window_map: %s", d_name_rect(&g_renderer.window_map));
+   d_logv(3, "scale_factor: %f", g_renderer.scale_factor);
 }
 
 static Layer* find_layer(LayerHandle handle) {
    if (handle == INVALID_LAYER) return NULL;
    
-   for (int i = 0; i < g_renderer.layer_count; i++) {
+   for (ui32 i = 0; i < g_renderer.layer_count; i++) {
       if (g_renderer.layers[i].handle == handle) {
          return &g_renderer.layers[i];
       }
    }
    return NULL;
+}
+
+static Layer* find_layer_by_index(ui32 index) {
+   // used when looping through all layers
+   if (index >= g_renderer.layer_count) return NULL;
+
+   Layer* layer = &g_renderer.layers[index];   
+   if (!layer || layer->handle == INVALID_LAYER || !layer->surface) return NULL;
+   
+   return layer;
 }
 
 static SDL_Surface* create_layer_surface(bool can_draw_outside) {
@@ -727,6 +744,7 @@ static SDL_Surface* create_layer_surface(bool can_draw_outside) {
    
    SDL_SetPaletteColors(surface->format->palette, get_palette_colors(), 0, PALETTE_SIZE);
    SDL_SetColorKey(surface, SDL_TRUE, g_renderer.transparent_color_index);
+   
    SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND);
    SDL_SetSurfaceAlphaMod(surface, 255);
 
@@ -748,14 +766,14 @@ static void resize_all_surfaces(void) {
    if (d_dne(g_renderer.composite_surface)) {
       d_err("couldn't recreate composite surface");
    }
-   for (int i = 0; i < g_renderer.layer_count; i++) {
-      if (i != 0) d_logl(", %d", i);
-      else d_logl(" and layer %d", i);
+   for (ui32 i = 0; i < g_renderer.layer_count; i++) {
+      Layer* layer = find_layer_by_index(i);
+      if (!layer) continue;
+
+      SDL_FreeSurface(layer->surface);
       
-      Layer* layer = &g_renderer.layers[i];
-      if (layer && layer->surface) {
-         SDL_FreeSurface(layer->surface);
-      }
+      if (i == 0) d_logl(" and layer %u", layer->handle);
+      else d_logl(", %u", layer->handle);
       
       layer->surface = create_layer_surface(layer->can_draw_outside_viewport);
       
@@ -773,12 +791,12 @@ static void resize_all_surfaces(void) {
    return;
 }
 
-static void align_coords(int* x, int* y, uint8_t size) {
+static void align_coords(int* x, int* y, ui8 size) {
    if (x) *x = (*x / size) * size;
    if (y) *y = (*y / size) * size;
 }
 
-static void align_rect(Rect* rect, uint8_t size) {
+static void align_rect(Rect* rect, ui8 size) {
    if (!rect) return;
    rect->w = (rect->w / size) * size;
    rect->h = (rect->h / size) * size;
@@ -786,7 +804,8 @@ static void align_rect(Rect* rect, uint8_t size) {
    rect->y = (rect->y / size) * size;
 }
 
-static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index) {
+static void blit_rect(Layer* layer, Rect* rect, ui8 color_index) {
+   // TODO: if composite or window surface, use palette[color_index]. uh make it a separate fn
    /* assumes layer exists and color is in bounds */
    Rect* adjusted_rect = rect;
    if (adjusted_rect) {
@@ -800,7 +819,7 @@ static void blit_rect(Layer* layer, Rect* rect, uint8_t color_index) {
 }
 
 static void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src_rect,
-                          int dest_x, int dest_y, uint8_t color_index) {
+                                 int dest_x, int dest_y, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    Layer* layer = find_layer(handle);
    if (!layer || !layer->surface || !source) return;
@@ -857,7 +876,7 @@ static void renderer_blit_masked(LayerHandle handle, ImageData* source, Rect src
    
    if (dest_rect.w <= 0 || dest_rect.h <= 0) return;
    
-   uint8_t* layer_pixels = (uint8_t*)layer->surface->pixels;
+   ui8* layer_pixels = (ui8*)layer->surface->pixels;
    int layer_pitch = layer->surface->pitch;
    
    if (layer->can_draw_outside_viewport) {

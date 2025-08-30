@@ -1,6 +1,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include "def.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -8,7 +9,7 @@
 #define Rect SDL_Rect
 #define WINDOW_TITLE "teafeds cool game"
 
-typedef uint32_t LayerHandle;
+typedef ui32 LayerHandle;
 #define INVALID_LAYER 0
 #define PALETTE_SIZE 36
 #define PALETTE_TRANSPARENT 35
@@ -47,8 +48,8 @@ typedef struct {
    LayerHandle handle;
    bool can_draw_outside_viewport;
    bool visible;
-   uint8_t opacity;     // 255 = fully opaque
-   uint8_t size;        // 2 = default
+   ui8 opacity;     // 255 = fully opaque
+   ui8 size;        // 2 = default (pixel size)
    SDL_Surface* surface;
 
    // TODO: other kind of float scaling based on perspective
@@ -73,18 +74,18 @@ typedef struct {
    
    ResizeMode resize_mode;
    bool resize_in_progress;         // only renders frozen composite frame until resizing is done
-   uint32_t resize_start_time;      // set if resize happens
-   uint32_t resize_delay_ms;
+   ui32 resize_start_time;      // set if resize happens
+   ui32 resize_delay_ms;
       
    DisplayMode display_mode;
    int last_windowed_width, last_windowed_height; // (window coords) updated when fullscreening
    
-   uint8_t clear_color_index;
-   uint8_t transparent_color_index;
+   ui8 clear_color_index;
+   ui8 transparent_color_index;
    
    Layer* layers;                   // 8-bit indexed surfaces to be compiled on composite_surface
-   int layer_count;
-   int layer_capacity;
+   ui32 layer_count;
+   ui32 layer_capacity;
    LayerHandle next_layer_handle;
    LayerHandle system_layer_handle;
    bool system_layer_data[SYS_MAX];
@@ -93,8 +94,8 @@ typedef struct {
    SpriteArray sprite_array;
 } RendererState;
 
-// TODO: palette("red-ivwy") returns uint8_t 11
-static const uint32_t palette[PALETTE_SIZE] = {
+// TODO: palette("red-ivwy") returns ui8 11
+static const ui32 palette[PALETTE_SIZE] = {
    // teaf-v5
    0xFEFEFDFF,  // 0  - mono-white
    0xAAAAAAFF,  // 1  - mono-lgrey
@@ -145,7 +146,7 @@ void renderer_handle_window_event(SDL_Event* event); // call every frame
 void renderer_set_display_resolution(DisplayResolution res);
 void renderer_set_display_mode(DisplayMode mode);
 void renderer_set_resize_mode(ResizeMode mode);
-void renderer_set_clear_color(uint8_t color_index);
+void renderer_set_clear_color(ui8 color_index);
 
 // layer management
 /* defaults: size = 2, visible = true, opacity = 255 */
@@ -153,21 +154,21 @@ LayerHandle renderer_create_layer(bool can_draw_outside);
 void renderer_destroy_layer(LayerHandle handle);
 void renderer_set_layer_draw_outside(LayerHandle handle, bool can_draw);
 void renderer_set_layer_visible(LayerHandle handle, bool visible);
-void renderer_set_layer_opacity(LayerHandle handle, uint8_t opacity);
-void renderer_set_layer_size(LayerHandle handle, uint8_t size);
+void renderer_set_layer_opacity(LayerHandle handle, ui8 opacity);
+void renderer_set_layer_size(LayerHandle handle, ui8 size);
 
 // drawing functions
-void renderer_draw_pixel(LayerHandle handle, int x, int y, uint8_t color_index);
-void renderer_draw_rect(LayerHandle handle, Rect rect, uint8_t color_index);
-void renderer_draw_rect_raw(Rect rect, uint8_t color_index);
-void renderer_draw_fill(LayerHandle handle, uint8_t color_index);
+void renderer_draw_pixel(LayerHandle handle, int x, int y, ui8 color_index);
+void renderer_draw_rect(LayerHandle handle, Rect rect, ui8 color_index);
+void renderer_draw_rect_raw(Rect rect, ui8 color_index);
+void renderer_draw_fill(LayerHandle handle, ui8 color_index);
 #include "file.h"
-void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, uint8_t color_index);
-void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, uint8_t color_index);
+void renderer_draw_char(LayerHandle handle, FontType font_type, char c, int x, int y, ui8 color_index);
+void renderer_draw_string(LayerHandle handle, FontType font_type, const char* str, int x, int y, ui8 color_index);
 
 // system layer
 void renderer_toggle_system_data(SystemData data, bool display);
-void renderer_draw_system_quit(uint8_t duration_held);
+void renderer_draw_system_quit(ui8 duration_held);
 
 // utility functions
 SDL_Surface* renderer_get_layer_surface(LayerHandle handle);
