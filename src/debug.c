@@ -111,7 +111,7 @@ void d_print_renderer_dims(void) {
    d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
    d_var(g_renderer->last_windowed_width);
    d_var(g_renderer->last_windowed_height);
-   for (int i = 0; i < g_renderer->layer_count; i++) {
+   for (ui32 i = 0; i < g_renderer->layer_count; i++) {
       d_logl("layer %d: w = %d, h = %d", i, g_renderer->layers[i].surface->w, g_renderer->layers[i].surface->h);
       d_logl("\n");
    }

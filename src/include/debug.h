@@ -1,6 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+#include "def.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -52,7 +53,7 @@ static inline void d__var_ptr(void* x, const char* name) {
 #define d_var(x) _Generic((x), \
    int: d__var_int, \
    unsigned int: d__var_uint, \
-   uint8_t: d__var_uint, \
+   ui8: d__var_uint, \
    float: d__var_float, \
    double: d__var_float, \
    char: d__var_char, \
