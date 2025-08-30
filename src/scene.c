@@ -125,7 +125,7 @@ void draw_title(void);
 void draw_dvd(void);
 
 void title_scene_init(void) {
-   layer_bg = renderer_create_layer(true);
+   layer_bg = renderer_create_layer(false);
    layer_test = renderer_create_layer(false);
    layer_sized = renderer_create_layer(false);
    renderer_set_layer_size(layer_test, 1);
@@ -160,8 +160,6 @@ void title_scene_update(float delta_time) {
 }
 
 void title_scene_render(void) {
-   renderer_clear();
-   
    draw_title();
    draw_dvd();
 }
@@ -196,22 +194,21 @@ void update_dvd(Rect* rect, int amt) {
 
 void draw_dvd(void) {
    renderer_draw_rect(layer_sized, moving_box, box_color);
-   renderer_draw_string(layer_sized, FONT_ACER_8_8, "DVD", moving_box.x + 30, moving_box.y + 42, 4);
+   renderer_draw_string(layer_sized, FONT_ACER_8_8, "DVD", moving_box.x + 28, moving_box.y + 42, 4);
 }
 
 void draw_title(void) {
-   Rect bg = {0, 0, dimx, dimy};
-   renderer_draw_rect(layer_bg, bg, 0);
-   Rect border1 = {0, 0, 640, 1};
-   Rect border2 = {0, 0, 1, 480};
-   Rect border3 = {0, 479, 640, 1};
-   Rect border4 = {639, 0, 1, 480};
+   renderer_draw_fill(layer_bg, 0);
+   Rect border1 = {0, 0, 640, 4};
+   Rect border2 = {0, 0, 4, 480};
+   Rect border3 = {0, 476, 640, 4};
+   Rect border4 = {636, 0, 4, 480};
    Rect title_rect = {90, 20, 420, 60};
    
-   renderer_draw_rect(layer_sized, border1, 9);
-   renderer_draw_rect(layer_sized, border2, 9);
-   renderer_draw_rect(layer_sized, border3, 9);
-   renderer_draw_rect(layer_sized, border4, 9);
+   renderer_draw_rect(layer_sized, border1, 10);
+   renderer_draw_rect(layer_sized, border2, 10);
+   renderer_draw_rect(layer_sized, border3, 10);
+   renderer_draw_rect(layer_sized, border4, 10);
 
    renderer_draw_rect(layer_sized, title_rect, 7);
    
@@ -224,10 +221,11 @@ void draw_title(void) {
 // ============================================================================
 
 static Menu* main_menu = NULL;
+static Menu* solo_menu = NULL;
 
 void main_menu_scene_init(void) {
    main_menu = menu_create(MENU_TYPE_MAIN, "MAIN MENU");
-   Menu* solo_menu = menu_create(MENU_TYPE_MAIN, "SOLO MODE");
+   solo_menu = menu_create(MENU_TYPE_MAIN, "SOLO MODE");
    
    menu_add_submenu_option(main_menu, "SOLO", solo_menu);
    menu_add_action_option(main_menu, "VERSUS", MENU_ACTION_GAME_SETUP, GAME_MODE_VERSUS);
@@ -248,12 +246,12 @@ void main_menu_scene_update(float delta_time) {
 }
 
 void main_menu_scene_render(void) {
-   renderer_clear();
    menu_render(main_menu);
 }
 
 void main_menu_scene_destroy(void) {
    menu_destroy(main_menu); // TODO: make this destroy children as well
+   menu_destroy(solo_menu); // temp
 }
 
 // ============================================================================
@@ -292,7 +290,6 @@ void settings_scene_update(float delta_time) {
 }
 
 void settings_scene_render(void) {
-   renderer_clear();
    menu_render(settings_menu);
 }
 
@@ -536,7 +533,7 @@ void character_select_handle_scene_change(SceneType new_scene) {
 // ============================================================================
 
 void gameplay_scene_init(void) {
-   renderer_clear();
+   //
 }
 
 void gameplay_scene_update(float delta_time) {
