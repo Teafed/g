@@ -54,6 +54,7 @@ typedef struct MenuOption {
       struct {  // CHOICE
          char* choices[MAX_CHOICES];
          int choice_count;
+         int unconfirmed_choice; // -1 if not actively changing
          int* current_choice;  // points to actual setting
       };
       struct {  // SLIDER
@@ -109,8 +110,5 @@ void menu_make_child(Menu* child, Menu* parent, int parent_option_index);
 void menu_navigate_to_child(Menu* menu, int option_index, int player);
 void menu_navigate_to_parent(Menu* menu, int player);
 void menu_set_active(Menu* menu);
-
-void menu_save_current_state(void); // when leaving a menu (scene change or going deeper)
-void menu_restore_state(Menu* menu); // when entering a menu
 
 #endif

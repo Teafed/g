@@ -62,6 +62,9 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
    switch (event) {
    case INPUT_UP:
       if (!any_enabled) break;
+      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
+         if (menu->options[*selected].unconfirmed_choice != -1) break;
+      }
       do {
          (*selected)--;
          if (*selected < 0) *selected = menu->option_count - 1;
@@ -70,6 +73,9 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       
    case INPUT_DOWN:
       if (!any_enabled) break;
+      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
+         if (menu->options[*selected].unconfirmed_choice != -1) break;
+      }
       do {
          (*selected)++;
          if (*selected >= menu->option_count) *selected = 0;
@@ -81,8 +87,12 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       // handle settings navigation
       if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          MenuOption* opt = &menu->options[*selected];
-         if (opt->current_choice && *opt->current_choice > 0) {
-            (*opt->current_choice)--;
+         if (opt->current_choice) {
+            if (*opt->current_choice > 0 && opt->unconfirmed_choice == -1) {
+               opt->unconfirmed_choice = *opt->current_choice - 1;
+            } else if (opt->unconfirmed_choice > 0) {
+               opt->unconfirmed_choice--;
+            }
          }
       } else if (menu->options[*selected].type == OPTION_TYPE_SLIDER) {
          MenuOption* opt = &menu->options[*selected];
@@ -100,8 +110,12 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       // handle settings navigation
       if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          MenuOption* opt = &menu->options[*selected];
-         if (opt->current_choice && *opt->current_choice < opt->choice_count - 1) {
-            (*opt->current_choice)++;
+         if (opt->current_choice) {
+            if (*opt->current_choice < opt->choice_count - 1 && opt->unconfirmed_choice == -1) {
+               opt->unconfirmed_choice = *opt->current_choice + 1;
+            } else if (opt->unconfirmed_choice < opt->choice_count - 1) {
+               if (opt->unconfirmed_choice != -1) opt->unconfirmed_choice++;
+            }
          }
       } else if (menu->options[*selected].type == OPTION_TYPE_SLIDER) {
          MenuOption* opt = &menu->options[*selected];
@@ -123,25 +137,28 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
             process_action(opt->action, opt->action_data, player);
             break;
             
-         case OPTION_TYPE_SUBMENU:
-            menu_navigate_to_child(menu, *selected, player);
-            break;
-            
          case OPTION_TYPE_TOGGLE:
             if (opt->toggle_value) {
                *opt->toggle_value = !(*opt->toggle_value);
+               d_logv(2, "option %s changed to %s", opt->text, (*opt->toggle_value) ? "TRUE" : "FALSE");
             }
             break;
             
          case OPTION_TYPE_CHOICE:
-            if (opt->current_choice) {
-               *opt->current_choice = (*opt->current_choice + 1) % opt->choice_count;
+            if (opt->current_choice && opt->unconfirmed_choice != -1) {
+               *opt->current_choice = opt->unconfirmed_choice;
+               opt->unconfirmed_choice = -1;
+               d_log("option %s changed to %s", opt->text, opt->choices[*opt->current_choice]);
             }
             break;
             
          case OPTION_TYPE_SLIDER:
             // maybe open a detailed slider interface?
             // or just do nothing for now
+            break;
+            
+         case OPTION_TYPE_SUBMENU:
+            menu_navigate_to_child(menu, *selected, player);
             break;
             
          case OPTION_TYPE_CHARSEL:
@@ -157,6 +174,10 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
    case INPUT_B:
       if (menu->parent) {
          menu_navigate_to_parent(menu, player);
+      } else if (menu->options[*selected].enabled) {
+         if (menu->options[*selected].unconfirmed_choice != -1) {
+            menu->options[*selected].unconfirmed_choice = -1;
+         }
       }
       break;
       
@@ -219,8 +240,6 @@ void menu_destroy(Menu* menu) {
    
    // destroy layer
    renderer_destroy_layer(menu->layer_handle);
-   
-   // TODO: make this destroy any child menus as well
    
    free(menu);
    menu = NULL;
@@ -293,6 +312,7 @@ void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int c
    for (int i = 0; i < count; i++) { opt->choices[i] = choices[i]; }
    opt->choice_count = count;
    opt->current_choice = current_ptr;
+   opt->unconfirmed_choice = -1;
    
    menu->option_count++;
 }
@@ -384,31 +404,6 @@ void menu_set_active(Menu* menu) {
    d_logv(2, "g_active_menu = %s", menu->title);
 }
 
-
-void menu_save_current_state(void) { // TODO
-   if (!g_active_menu) return;
-   
-   for (int p = 0; p < MAX_PLAYERS; p++) {
-//      if (/* player p made a selection */) {
-//         menu_save_selection(g_active_menu->title, p, 
-//                           g_active_menu->selected_option[p], 
-//                           /* device_id for player p */);
-//      }
-   }
-}
-
-void menu_restore_state(Menu* menu) { // TODO
-   if (!menu) return;
-   
-   for (int p = 0; p < MAX_PLAYERS; p++) {
-//      int device_id;
-//      int saved_option = menu_restore_selection(menu->title, p, &device_id);
-//      if (saved_option >= 0 && saved_option < menu->option_count) {
-//         menu->selected_option[p] = saved_option;
-//      }
-   }
-}
-
 // INTERNAL
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size) {
    if (!buffer) return;
@@ -425,8 +420,14 @@ static void format_option_text(MenuOption* opt, char* buffer, int buffer_size) {
       
    case OPTION_TYPE_CHOICE:
       if (opt->current_choice && *opt->current_choice < opt->choice_count) {
-         snprintf(buffer, buffer_size, "%s: %s", opt->text, 
-                 opt->choices[*opt->current_choice]);
+         if (opt->unconfirmed_choice != -1) {
+            snprintf(buffer, buffer_size, "%s: %s *", opt->text, 
+                     opt->choices[opt->unconfirmed_choice]);
+         }
+         else {
+            snprintf(buffer, buffer_size, "%s: %s", opt->text, 
+                     opt->choices[*opt->current_choice]);
+         }
       } else {
          snprintf(buffer, buffer_size, "%s: ???", opt->text);
       }
@@ -448,7 +449,7 @@ static void process_action(MenuAction action, int data, int player) {
    switch (action) {
    case MENU_ACTION_SCENE_CHANGE:
       // change to scene specified in data
-      d_logv(2, "SceneType = %s", d_name_scene_type(data));
+      d_logv(3, "SceneType = %s", d_name_scene_type(data));
       if (data < 0 || data >= SCENE_MAX) {
          d_log("invalid scene");
          return;
@@ -459,7 +460,7 @@ static void process_action(MenuAction action, int data, int player) {
    case MENU_ACTION_GAME_SETUP:
       // setup game with mode specified in data
       // TODO: this!!!!!!
-      d_logv(2, "GameModeType = %s", d_name_game_mode_type(data));
+      d_logv(3, "GameModeType = %s", d_name_game_mode_type(data));
       scene_start_game_session(data);
       scene_change_to(SCENE_CHARACTER_SELECT);
       break;
