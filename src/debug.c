@@ -66,22 +66,23 @@ const char* d_name_rect(Rect* rect) {
 
 // RENDERER
 const char* d_name_display_resolution(DisplayResolution res) {
-   static const char* names[] = { "RES_VGA", "RES_FWVGA" };
-   return (res >= 0 && res < 2) ? names[res] : "UNKNOWN!";
+   static const char* names[] = { "RES_VGA", "RES_FWVGA", "RES_MAX" };
+   return (res >= 0 && res < RES_MAX) ? names[res] : "UNKNOWN!";
 }
-
+   
 const char* d_name_resize_mode(ResizeMode mode) {
-   static const char* names[] = { "RESIZE_FIT", "RESIZE_FIXED" };
-   return (mode >= 0 && mode < 2) ? names[mode] : "UNKNOWN!";
+   static const char* names[] = { "RESIZE_FIT", "RESIZE_FIXED", "RESIZE_MAX" };
+   return (mode >= 0 && mode < RESIZE_MAX) ? names[mode] : "UNKNOWN!";
 }
 
 const char* d_name_window_mode(WindowMode mode) {
    static const char* names[] = {
       "WINDOW_WINDOWED",
       "WINDOW_BORDERLESS",
-      "WINDOW_FULLSCREEN"
+      "WINDOW_FULLSCREEN",
+      "WINDOW_MAX"
    };
-   return (mode >= 0 && mode < 3) ? names[mode] : "UNKNOWN!";
+   return (mode >= 0 && mode < WINDOW_MAX) ? names[mode] : "UNKNOWN!";
 }
 
 const char* d_name_system_data(SystemData data) {
@@ -159,7 +160,7 @@ const char* d_name_input_event(InputEvent e) {
         "INPUT_SELECT",    "INPUT_QUIT",
         "INPUT_MAX"
     };
-    return (e >= 0 && e < INPUT_MAX + 1) ? names[e] : "UNKNOWN!";
+    return (e >= 0 && e < INPUT_MAX) ? names[e] : "UNKNOWN!";
 }
 
 const char* d_name_game_context(GameContext context) {

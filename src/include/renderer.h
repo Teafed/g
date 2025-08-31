@@ -4,7 +4,6 @@
 #include "def.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
-#include <stdint.h>
 
 #define Rect SDL_Rect
 #define WINDOW_TITLE "teafeds cool game"
@@ -23,18 +22,21 @@ typedef ui32 LayerHandle;
 
 typedef enum {
    RES_VGA,             // 640x480 (4:3)
-   RES_FWVGA            // 854x480 (approximately 16:9)
+   RES_FWVGA,           // 854x480 (approximately 16:9)
+   RES_MAX
 } DisplayResolution;
 
 typedef enum {
    RESIZE_FIT,          // game area scales to fit window
-   RESIZE_FIXED         // game area stays fixed size, centered
+   RESIZE_FIXED,        // game area stays fixed size, centered
+   RESIZE_MAX
 } ResizeMode;
 
 typedef enum {
    WINDOW_WINDOWED,
    WINDOW_BORDERLESS,
-   WINDOW_FULLSCREEN
+   WINDOW_FULLSCREEN,
+   WINDOW_MAX
 } WindowMode;
 
 typedef enum {
