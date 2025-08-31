@@ -28,14 +28,14 @@ typedef enum {
 
 typedef enum {
    RESIZE_FIT,          // game area scales to fit window
-   RESIZE_FIXED,        // game area stays fixed size, centered
+   RESIZE_FIXED         // game area stays fixed size, centered
 } ResizeMode;
 
 typedef enum {
-   DISPLAY_WINDOWED,
-   DISPLAY_BORDERLESS,
-   DISPLAY_FULLSCREEN
-} DisplayMode;
+   WINDOW_WINDOWED,
+   WINDOW_BORDERLESS,
+   WINDOW_FULLSCREEN
+} WindowMode;
 
 typedef enum {
    SYS_CURRENT_FPS,  // -> timing_get_current_fps()
@@ -77,7 +77,7 @@ typedef struct {
    ui32 resize_start_time;      // set if resize happens
    ui32 resize_delay_ms;
       
-   DisplayMode display_mode;
+   WindowMode window_mode;
    int last_windowed_width, last_windowed_height; // (window coords) updated when fullscreening
    
    ui8 clear_color_index;
@@ -144,7 +144,7 @@ void renderer_handle_window_event(SDL_Event* event); // call every frame
 
 // config options
 void renderer_set_display_resolution(DisplayResolution res);
-void renderer_set_display_mode(DisplayMode mode);
+void renderer_set_window_mode(WindowMode mode);
 void renderer_set_resize_mode(ResizeMode mode);
 void renderer_set_clear_color(ui8 color_index);
 

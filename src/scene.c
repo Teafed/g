@@ -263,7 +263,7 @@ static Menu* settings_menu = NULL;
 bool g_sound_enabled = true;
 int g_master_volume = 90;
 int g_resolution = 0; // TODO: these are just temp, get from renderer
-int g_display_mode = 0;
+int g_window_mode = 0;
 int g_resize_mode = 0;
 void update_input_display(void);
 
@@ -274,8 +274,8 @@ void settings_scene_init(void) {
    menu_add_slider_option(settings_menu, "MASTER VOLUME", &g_master_volume, 0, 100, 1);
    char* resolution_choices[] = {"VGA", "FWVGA"};
    menu_add_choice_option(settings_menu, "RESOLUTION", resolution_choices, 2, &g_resolution);
-   char* display_choices[] = {"WINDOWED", "BORDERLESS", "FULLSCREEN"};
-   menu_add_choice_option(settings_menu, "WINDOW MODE", display_choices, 3, &g_display_mode);
+   char* window_choices[] = {"WINDOWED", "BORDERLESS", "FULLSCREEN"};
+   menu_add_choice_option(settings_menu, "WINDOW MODE", window_choices, 3, &g_window_mode);
    char* resize_choices[] = {"FIT", "FIXED"};
    menu_add_choice_option(settings_menu, "RESIZE MODE", resize_choices, 3, &g_resize_mode);
    menu_add_action_option(settings_menu, "BACK", MENU_ACTION_SCENE_CHANGE, SCENE_MAIN_MENU);

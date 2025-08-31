@@ -63,7 +63,7 @@ bool renderer_init(float scale_factor) {
    g_renderer.resize_start_time = timing_get_game_time_ms();
    g_renderer.resize_delay_ms = RESIZE_DELAY;
    
-   g_renderer.display_mode = DISPLAY_WINDOWED;
+   g_renderer.window_mode = WINDOW_WINDOWED;
    g_renderer.last_windowed_width = g_renderer.window_surface->w;
    g_renderer.last_windowed_height = g_renderer.window_surface->h;
    
@@ -272,17 +272,17 @@ void renderer_set_display_resolution(DisplayResolution res) {
    calculate_mapping();
 }
 
-void renderer_set_display_mode(DisplayMode mode) {
-   if (!g_renderer.initialized || mode == g_renderer.display_mode) return;
+void renderer_set_window_mode(WindowMode mode) {
+   if (!g_renderer.initialized || mode == g_renderer.window_mode) return;
 
    // going to fullscreen
-   if (g_renderer.display_mode == DISPLAY_WINDOWED) {
+   if (g_renderer.window_mode == WINDOW_WINDOWED) {
       g_renderer.last_windowed_width = g_renderer.window_surface->w;
       g_renderer.last_windowed_height = g_renderer.window_surface->h;
    }
    
    switch (mode) {
-   case DISPLAY_WINDOWED:
+   case WINDOW_WINDOWED:
       SDL_SetWindowFullscreen(g_renderer.window, 0);
       // QUES: what does setwindowfullscreen do without this if?
       if (g_renderer.last_windowed_width > 0) {
@@ -292,16 +292,16 @@ void renderer_set_display_mode(DisplayMode mode) {
       }
       break;
       
-   case DISPLAY_BORDERLESS:
+   case WINDOW_BORDERLESS:
       SDL_SetWindowFullscreen(g_renderer.window, SDL_WINDOW_FULLSCREEN_DESKTOP);
       break;
       
-   case DISPLAY_FULLSCREEN:
+   case WINDOW_FULLSCREEN:
       SDL_SetWindowFullscreen(g_renderer.window, SDL_WINDOW_FULLSCREEN);
       break;
    }
    
-   g_renderer.display_mode = mode;
+   g_renderer.window_mode = mode;
 }
 
 void renderer_set_resize_mode(ResizeMode mode) {
@@ -662,8 +662,8 @@ static void calculate_mapping(void) {
    g_renderer.window_map.y = 0;
    
    ResizeMode effective_resize_mode = g_renderer.resize_mode;
-   if (g_renderer.display_mode == DISPLAY_BORDERLESS || 
-       g_renderer.display_mode == DISPLAY_FULLSCREEN) {
+   if (g_renderer.window_mode == WINDOW_BORDERLESS || 
+       g_renderer.window_mode == WINDOW_FULLSCREEN) {
       effective_resize_mode = RESIZE_FIT;
    }
    

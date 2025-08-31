@@ -75,11 +75,11 @@ const char* d_name_resize_mode(ResizeMode mode) {
    return (mode >= 0 && mode < 2) ? names[mode] : "UNKNOWN!";
 }
 
-const char* d_name_display_mode(DisplayMode mode) {
+const char* d_name_window_mode(WindowMode mode) {
    static const char* names[] = {
-      "DISPLAY_WINDOWED",
-      "DISPLAY_BORDERLESS",
-      "DISPLAY_FULLSCREEN"
+      "WINDOW_WINDOWED",
+      "WINDOW_BORDERLESS",
+      "WINDOW_FULLSCREEN"
    };
    return (mode >= 0 && mode < 3) ? names[mode] : "UNKNOWN!";
 }
@@ -108,11 +108,12 @@ void d_print_renderer_dims(void) {
    d_logl("display_resolution = %s", d_name_display_resolution(g_renderer->display_resolution)); d_logl("\n");
    d_logl("unit_map =           %s", d_name_rect(&unit_map)); d_logl("\n");
    d_logl("window_map =         %s", d_name_rect(&window_map)); d_logl("\n");
-   d_logl("display_mode =       %s", d_name_display_mode(g_renderer->display_mode)); d_logl("\n");
+   d_logl("window_mode =        %s", d_name_window_mode(g_renderer->window_mode)); d_logl("\n");
    d_var(g_renderer->last_windowed_width);
    d_var(g_renderer->last_windowed_height);
    for (ui32 i = 0; i < g_renderer->layer_count; i++) {
-      d_logl("layer %d: w = %d, h = %d", i, g_renderer->layers[i].surface->w, g_renderer->layers[i].surface->h);
+      d_logl("(%u) layer %d: w = %d, h = %d", i,
+             g_renderer->layers[i].handle, g_renderer->layers[i].surface->w, g_renderer->layers[i].surface->h);
       d_logl("\n");
    }
 }

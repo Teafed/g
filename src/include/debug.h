@@ -63,9 +63,10 @@ static inline void d__var_ptr(void* x, const char* name) {
 )(x, #x)
 
 // RENDERER
-#include "renderer.h" // for DisplayResolution, DisplayMode
+#include "renderer.h" // for DisplayResolution, WindowMode
 const char* d_name_display_resolution(DisplayResolution res);
-const char* d_name_display_mode(DisplayMode mode);
+const char* d_name_resize_mode(ResizeMode mode);
+const char* d_name_window_mode(WindowMode mode);
 const char* d_name_system_data(SystemData data);
 void d_print_renderer_dims(void);
 
