@@ -149,6 +149,9 @@ void renderer_set_display_resolution(DisplayResolution res);
 void renderer_set_window_mode(WindowMode mode);
 void renderer_set_resize_mode(ResizeMode mode);
 void renderer_set_clear_color(ui8 color_index);
+int* renderer_get_display_resolution(void);
+int* renderer_get_window_mode(void);
+int* renderer_get_resize_mode(void);
 
 // layer management
 /* defaults: size = 2, visible = true, opacity = 255 */

@@ -38,6 +38,8 @@ typedef enum {
    MENU_ACTION_MAX
 } MenuAction;
 
+typedef void (*SettingChange)(int new_value);
+
 typedef struct MenuOption {
    char text[MAX_OPTION_TEXT_LEN];
    OptionType type;
@@ -56,6 +58,7 @@ typedef struct MenuOption {
          int choice_count;
          int unconfirmed_choice; // -1 if not actively changing
          int* current_choice;  // points to actual setting
+         SettingChange on_change;
       };
       struct {  // SLIDER
          int* slider_value;
@@ -98,7 +101,7 @@ void menu_system_cleanup(void); // just set g_active_menu to NULL
 void menu_add_action_option(Menu* menu, const char* text, MenuAction action, int data);
 void menu_add_submenu_option(Menu* menu, const char* text, Menu* submenu);
 void menu_add_toggle_option(Menu* menu, const char* text, bool* toggle_ptr);
-void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr);
+void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr, SettingChange on_change);
 void menu_add_slider_option(Menu* menu, const char* text, int* value_ptr, int min, int max, int step);
 void menu_add_charsel_option(Menu* menu, const char* text, int character_index);
 

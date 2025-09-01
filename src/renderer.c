@@ -299,6 +299,8 @@ void renderer_set_window_mode(WindowMode mode) {
    case WINDOW_FULLSCREEN:
       SDL_SetWindowFullscreen(g_renderer.window, SDL_WINDOW_FULLSCREEN);
       break;
+   default:
+      d_log("unhandled window case");
    }
    
    g_renderer.window_mode = mode;
@@ -323,6 +325,8 @@ void renderer_set_resize_mode(ResizeMode mode) {
          SDL_SetWindowMinimumSize(g_renderer.window, w, h);
          break;
       }
+      default:
+         d_log("unhandled resize case");
       }
    }
    g_renderer.resize_mode = mode;
@@ -332,6 +336,21 @@ void renderer_set_clear_color(ui8 color_index) {
    if (!g_renderer.initialized) return;
    
    g_renderer.clear_color_index = color_index;
+}
+
+int* renderer_get_display_resolution(void) {
+   if (!g_renderer.initialized) return NULL;
+   return (int*)&g_renderer.display_resolution;
+}
+
+int* renderer_get_window_mode(void) {
+   if (!g_renderer.initialized) return NULL;
+   return (int*)&g_renderer.window_mode;
+}
+
+int* renderer_get_resize_mode(void) {
+   if (!g_renderer.initialized) return NULL;
+   return (int*)&g_renderer.resize_mode;
 }
 
 // LAYER MANAGEMENT
@@ -651,6 +670,8 @@ static void calculate_mapping(void) {
       g_renderer.unit_map.w = GAME_WIDTH_FWVGA;
       g_renderer.unit_map.h = GAME_HEIGHT_FWVGA;
       break;
+   default:
+      d_log("unhandled res case");
    }
    
    // unit viewport always starts at origin - it's the full game area
@@ -703,6 +724,8 @@ static void calculate_mapping(void) {
       g_renderer.unit_map.x = window_x / g_renderer.scale_factor;
       g_renderer.unit_map.y = window_y / g_renderer.scale_factor;
       break;
+   default:
+      d_log("unhandled resize case");
    }
    
    d_logv(3, "unit_map: %s", d_name_rect(&g_renderer.unit_map));

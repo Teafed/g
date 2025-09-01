@@ -146,9 +146,15 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
             
          case OPTION_TYPE_CHOICE:
             if (opt->current_choice && opt->unconfirmed_choice != -1) {
-               *opt->current_choice = opt->unconfirmed_choice;
+               // *opt->current_choice = opt->unconfirmed_choice;
+               int new_value = opt->unconfirmed_choice;
                opt->unconfirmed_choice = -1;
-               d_log("option %s changed to %s", opt->text, opt->choices[*opt->current_choice]);
+               d_log("option %s changed to %s", opt->text, opt->choices[new_value]);
+               if (opt->on_change) {
+                  opt->on_change(new_value);
+               } else {
+                  *opt->current_choice = new_value; // fallback for non-callback options
+               }
             }
             break;
             
@@ -299,7 +305,7 @@ void menu_add_toggle_option(Menu* menu, const char* text, bool* toggle_ptr) {
    menu->option_count++;
 }
 
-void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr) {
+void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr, SettingChange on_change) {
    if (!menu || menu->option_count >= MAX_MENU_OPTIONS || !choices || !current_ptr) return;
    if (count > MAX_CHOICES) count = MAX_CHOICES;
    
@@ -311,8 +317,9 @@ void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int c
    
    for (int i = 0; i < count; i++) { opt->choices[i] = choices[i]; }
    opt->choice_count = count;
-   opt->current_choice = current_ptr;
    opt->unconfirmed_choice = -1;
+   opt->current_choice = current_ptr;
+   opt->on_change = on_change;
    
    menu->option_count++;
 }
