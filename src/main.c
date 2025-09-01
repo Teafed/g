@@ -55,8 +55,8 @@ int main(int argc, char* argv[]) {
 }
 
 bool game_init(float scale_factor, int framerate) {
-   // init renderer
-   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+   // init SDL
+   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0) {
       d_err("SDL could not initialize! SDL_Error: %s", SDL_GetError());
       return false;
    }
@@ -111,6 +111,7 @@ void game_escape(uint32_t timer) {
 }
 
 void game_shutdown(void) {
+   d_logl("\n");
    d_log("shutting down the game......");
    g_game.state = GAME_QUIT;
    scene_destroy();
