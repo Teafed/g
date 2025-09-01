@@ -137,7 +137,7 @@ void title_scene_init(void) {
 
 extern void game_shutdown(void);
 void title_scene_handle_input(InputEvent event, InputState state, int device_id) {
-   (void)state;
+   if (!state.pressed) return;
    if (event == INPUT_START || event == INPUT_A) {
       // first input detected - assign as player 1
       if (input_get_player_device(1) == -1) {
@@ -250,8 +250,8 @@ void main_menu_scene_render(void) {
 }
 
 void main_menu_scene_destroy(void) {
-   menu_destroy(main_menu); // TODO: make this destroy children as well
-   menu_destroy(solo_menu); // temp
+   menu_destroy(solo_menu);
+   menu_destroy(main_menu);
 }
 
 // ============================================================================
@@ -259,25 +259,28 @@ void main_menu_scene_destroy(void) {
 // ============================================================================
 
 static Menu* settings_menu = NULL;
+LayerHandle layer_input;
 
 bool g_sound_enabled = true;
 int g_master_volume = 90;
-int g_resolution = 0; // TODO: these are just temp, get from renderer
-int g_window_mode = 0;
-int g_resize_mode = 0;
-void update_input_display(void);
+void draw_input_display(void);
+
+void on_resolution_change(int value) { renderer_set_display_resolution((DisplayResolution)value); }
+void on_window_mode_change(int value) { renderer_set_window_mode((WindowMode)value); }
+void on_resize_mode_change(int value) { renderer_set_resize_mode((ResizeMode)value); }
 
 void settings_scene_init(void) {
+   layer_input = renderer_create_layer(false);
    settings_menu = menu_create(MENU_TYPE_SETTINGS, "SYSTEM SETTINGS");
    
    menu_add_toggle_option(settings_menu, "SOUND ENABLED", &g_sound_enabled);
    menu_add_slider_option(settings_menu, "MASTER VOLUME", &g_master_volume, 0, 100, 1);
    char* resolution_choices[] = {"VGA", "FWVGA"};
-   menu_add_choice_option(settings_menu, "RESOLUTION", resolution_choices, 2, &g_resolution);
+   menu_add_choice_option(settings_menu, "RESOLUTION", resolution_choices, 2, renderer_get_display_resolution(), on_resolution_change);
    char* window_choices[] = {"WINDOWED", "BORDERLESS", "FULLSCREEN"};
-   menu_add_choice_option(settings_menu, "WINDOW MODE", window_choices, 3, &g_window_mode);
+   menu_add_choice_option(settings_menu, "WINDOW MODE", window_choices, 3, renderer_get_window_mode(), on_window_mode_change);
    char* resize_choices[] = {"FIT", "FIXED"};
-   menu_add_choice_option(settings_menu, "RESIZE MODE", resize_choices, 3, &g_resize_mode);
+   menu_add_choice_option(settings_menu, "RESIZE MODE", resize_choices, 2, renderer_get_resize_mode(), on_resize_mode_change);
    menu_add_action_option(settings_menu, "BACK", MENU_ACTION_SCENE_CHANGE, SCENE_MAIN_MENU);
    
    menu_set_active(settings_menu);
@@ -286,75 +289,79 @@ void settings_scene_init(void) {
 
 void settings_scene_update(float delta_time) {
    (void)delta_time;
-   update_input_display();
 }
 
 void settings_scene_render(void) {
    menu_render(settings_menu);
+   draw_input_display();
 }
 
 void settings_scene_destroy(void) {
-   menu_destroy(settings_menu); // TODO: make this destroy children as well
+   menu_destroy(settings_menu);
 }
 
 typedef struct {
    InputEvent event;
    int col, row;
    char label;
-   uint8_t fg_color;
+   uint8_t color;
 } InputDisplayConfig;
 
 InputDisplayConfig dev_0[] = {
-   {INPUT_UP, 55, 7, 'U', 11},
-   {INPUT_DOWN, 55, 9, 'D', 11},
-   {INPUT_LEFT, 54, 8, 'L', 11},
-   {INPUT_RIGHT, 56, 8, 'R', 11},
-   {INPUT_A, 58, 7, 'A', 12},
-   {INPUT_B, 59, 7, 'B', 12},
-   {INPUT_C, 60, 7, 'C', 12},
-   {INPUT_D, 61, 7, 'D', 12}
+   {INPUT_UP, 436, 66, 'U', 11},
+   {INPUT_DOWN, 436, 98, 'D', 11},
+   {INPUT_LEFT, 420, 82, 'L', 11},
+   {INPUT_RIGHT, 452, 82, 'R', 11},
+   {INPUT_A, 484, 82, 'A', 12},
+   {INPUT_B, 500, 82, 'B', 12},
+   {INPUT_C, 516, 82, 'C', 12},
+   {INPUT_D, 532, 82, 'D', 12}
 };
 InputDisplayConfig dev_1[] = {
-   {INPUT_UP, 55, 13, 'U', 15},
-   {INPUT_DOWN, 55, 15, 'D', 15},
-   {INPUT_LEFT, 54, 14, 'L', 15},
-   {INPUT_RIGHT, 56, 14, 'R', 15},
-   {INPUT_A, 58, 13, 'A', 16},
-   {INPUT_B, 59, 13, 'B', 16},
-   {INPUT_C, 60, 13, 'C', 16},
-   {INPUT_D, 61, 13, 'D', 16}
+   {INPUT_UP, 436, 166, 'U', 15},
+   {INPUT_DOWN, 436, 198, 'D', 15},
+   {INPUT_LEFT, 420, 182, 'L', 15},
+   {INPUT_RIGHT, 452, 182, 'R', 15},
+   {INPUT_A, 484, 182, 'A', 16},
+   {INPUT_B, 500, 182, 'B', 16},
+   {INPUT_C, 516, 182, 'C', 16},
+   {INPUT_D, 532, 182, 'D', 16}
 };
 InputDisplayConfig dev_2[] = {
-   {INPUT_UP, 67, 7, 'U', 22},
-   {INPUT_DOWN, 67, 9, 'D', 22},
-   {INPUT_LEFT, 66, 8, 'L', 22},
-   {INPUT_RIGHT, 68, 8, 'R', 22},
-   {INPUT_A, 70, 7, 'A', 23},
-   {INPUT_B, 71, 7, 'B', 23},
-   {INPUT_C, 72, 7, 'C', 23},
-   {INPUT_D, 73, 7, 'D', 23}
+   {INPUT_UP, 436, 266, 'U', 22},
+   {INPUT_DOWN, 436, 298, 'D', 22},
+   {INPUT_LEFT, 420, 282, 'L', 22},
+   {INPUT_RIGHT, 452, 282, 'R', 22},
+   {INPUT_A, 484, 282, 'A', 23},
+   {INPUT_B, 500, 282, 'B', 23},
+   {INPUT_C, 516, 282, 'C', 23},
+   {INPUT_D, 532, 282, 'D', 23}
 };
 InputDisplayConfig dev_3[] = {
-   {INPUT_UP, 67, 13, 'U', 29},
-   {INPUT_DOWN, 67, 15, 'D', 29},
-   {INPUT_LEFT, 66, 14, 'L', 29},
-   {INPUT_RIGHT, 68, 14, 'R', 29},
-   {INPUT_A, 70, 13, 'A', 30},
-   {INPUT_B, 71, 13, 'B', 30},
-   {INPUT_C, 72, 13, 'C', 30},
-   {INPUT_D, 73, 13, 'D', 30}
+   {INPUT_UP, 436, 366, 'U', 29},
+   {INPUT_DOWN, 436, 398, 'D', 29},
+   {INPUT_LEFT, 420, 382, 'L', 29},
+   {INPUT_RIGHT, 452, 382, 'R', 29},
+   {INPUT_A, 484, 382, 'A', 30},
+   {INPUT_B, 500, 382, 'B', 30},
+   {INPUT_C, 516, 382, 'C', 30},
+   {INPUT_D, 532, 382, 'D', 30}
 };
 
-void update_input_display(void) {
+void draw_input_display(void) {
    // runs every frame to show current input states
-   // !!! renderer_fill_rect(50, 5, 15, 10, ' ', 0, 4);  // device 0
-   // !!! renderer_draw_string(50, 5, "DEVICE 0:", 15, 4);
-   // !!! renderer_fill_rect(50, 11, 15, 10, ' ', 0, 4); // device 1
-   // !!! renderer_draw_string(50, 11, "DEVICE 1:", 15, 4);
-   // !!! renderer_fill_rect(62, 5, 15, 10, ' ', 0, 4);  // device 2
-   // !!! renderer_draw_string(62, 5, "DEVICE 2:", 15, 4);
-   // !!! renderer_fill_rect(62, 11, 15, 10, ' ', 0, 4); // device 3
-   // !!! renderer_draw_string(62, 11, "DEVICE 3:", 15, 4);
+   Rect dev_rect0 = {420, 50, 144, 62};
+   renderer_draw_rect(layer_input, dev_rect0, 3);  // device 0
+   renderer_draw_string(layer_input, FONT_ACER_8_8, "DEVICE 0:", dev_rect0.x, dev_rect0.y, 24);
+   Rect dev_rect1 = {420, 150, 144, 62};
+   renderer_draw_rect(layer_input, dev_rect1, 3);  // device 1
+   renderer_draw_string(layer_input, FONT_ACER_8_8, "DEVICE 1:", dev_rect1.x, dev_rect1.y, 25);
+   Rect dev_rect2 = {420, 250, 144, 62};
+   renderer_draw_rect(layer_input, dev_rect2, 3);  // device 2
+   renderer_draw_string(layer_input, FONT_ACER_8_8, "DEVICE 2:", dev_rect2.x, dev_rect2.y, 26);
+   Rect dev_rect3 = {420, 350, 144, 62};
+   renderer_draw_rect(layer_input, dev_rect3, 3);  // device 3
+   renderer_draw_string(layer_input, FONT_ACER_8_8, "DEVICE 3:", dev_rect3.x, dev_rect3.y, 27);
 
    InputDisplayConfig* devs[] = { dev_0, dev_1, dev_2, dev_3 };
    
@@ -363,8 +370,8 @@ void update_input_display(void) {
       if (g_input->devices[dev_i].connected) {
          for (int btn_i = 0; btn_i < 8; btn_i++) { // 8 buttons to display here
             if (input_held(devs[dev_i][btn_i].event, g_input->devices[dev_i].device_id)) {
-               // !!! renderer_set_char(devs[dev_i][btn_i].col, devs[dev_i][btn_i].row, 
-               //   devs[dev_i][btn_i].label, devs[dev_i][btn_i].fg_color, 4);
+               renderer_draw_char(layer_input, FONT_ACER_8_8, devs[dev_i][btn_i].label,
+                                  devs[dev_i][btn_i].col, devs[dev_i][btn_i].row, devs[dev_i][btn_i].color);
             }
          }
       }
@@ -422,7 +429,7 @@ void character_select_scene_render(void) {
 }
 
 void character_select_scene_destroy(void) {
-   menu_destroy(character_menu); // TODO: make this destroy children as well
+   menu_destroy(character_menu);
 }
 
 void device_select_init(void) {

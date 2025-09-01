@@ -42,7 +42,8 @@ Menu* menu_create(MenuType type, const char* title) {
 }
 
 void menu_handle_input(InputEvent event, InputState state, int device_id) {
-   (void) state;
+   if (!state.pressed && (state.held && state.duration < 0.3f)) return;
+   
    int player = input_get_player(device_id);
    if (!g_active_menu || player <= 0 || player > MAX_PLAYERS) return;
 

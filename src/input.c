@@ -6,7 +6,7 @@
 
 extern void game_shutdown(void);
 
-static InputSystem g_input = { 0 }; // should this be static?
+static InputSystem g_input = { 0 };
 
 // core functions
 void input_init(void) {
@@ -70,8 +70,10 @@ void input_update(float delta_time) {
          }
 
          // route input to current context handler
-         if (state->pressed && g_input.context_handlers[g_input.current_context]) {
-            g_input.context_handlers[g_input.current_context](event, *state, dev);
+         if (g_input.context_handlers[g_input.current_context]) {
+            if (state->pressed || (state->held && state->duration > 0.0f)) {
+               g_input.context_handlers[g_input.current_context](event, *state, dev);
+            }
          }
       }
    }
@@ -170,9 +172,11 @@ void input_cleanup_disconnected_devices(void) {
    // clean up devices that haven't been seen for a while
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {
       InputDevice* device = &g_input.devices[i];
-      if (!device->connected && 
-         (timing_get_frame_count() - device->last_seen_frame) > 1800) {  // 30 seconds at 60fps
-         memset(&device->info, 0, sizeof(DeviceInfo));
+      if (!device->connected && device->last_seen_frame > 0) { // 30 seconds at 60fps
+         if ((timing_get_frame_count() - device->last_seen_frame) > 1800) {
+            memset(&device->info, 0, sizeof(DeviceInfo));
+            d_log("disconnected device %d: %s", device->device_id, device->info.name);
+         }
       }
    }
 }
