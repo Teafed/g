@@ -4,7 +4,7 @@
 
 static TimingState g_timing = { 0 };
 
-void timing_init(uint32_t target_fps) {
+void timing_init(ui32 target_fps) {
    if (target_fps == 0) { d_log("cmon man. fps set to 60"); target_fps = 60; }
    g_timing.target_fps = target_fps;
    g_timing.target_frame_time = 1000 / target_fps;  // ms per frame
@@ -26,8 +26,8 @@ void timing_frame_start(void) {
 }
 
 void timing_frame_end(void) {
-   uint32_t current_time = SDL_GetTicks();
-   uint32_t frame_duration = current_time - g_timing.frame_start_time;
+   ui32 current_time = SDL_GetTicks();
+   ui32 frame_duration = current_time - g_timing.frame_start_time;
    
    g_timing.last_frame_time = frame_duration;
    g_timing.frame_count++;
@@ -51,11 +51,11 @@ bool timing_should_limit_frame(void) {
    return (g_timing.last_frame_time < g_timing.target_frame_time);
 }
 
-uint32_t timing_get_last_frame_time(void) {
+ui32 timing_get_last_frame_time(void) {
    return g_timing.last_frame_time;
 }
 
-uint32_t timing_get_frame_duration(void) {
+ui32 timing_get_frame_duration(void) {
    if (g_timing.last_frame_time >= g_timing.target_frame_time) {
       return 0;  // already over budget...
    }
@@ -63,7 +63,7 @@ uint32_t timing_get_frame_duration(void) {
 }
 
 float timing_get_delta_time(void) {
-   static uint32_t previous_frame_start = 0;
+   static ui32 previous_frame_start = 0;
    
    if (previous_frame_start == 0) {
       previous_frame_start = g_timing.frame_start_time;
@@ -81,11 +81,11 @@ float timing_get_delta_time(void) {
    return delta;
 }
 
-uint32_t timing_get_frame_count(void) {
+ui32 timing_get_frame_count(void) {
    return g_timing.frame_count;
 }
 
-uint32_t timing_get_game_time_ms(void) {
+ui32 timing_get_game_time_ms(void) {
    return g_timing.total_game_time;
 }
 
@@ -94,8 +94,10 @@ float timing_get_current_fps(void) {
    return 1000.0f / g_timing.last_frame_time;
 }
 
-void timing_get_performance_info(uint32_t* min_ms, uint32_t* max_ms, 
-                                 uint32_t* avg_ms, uint32_t* frames_over) {
+// ui32 timer_start()
+
+void timing_get_performance_info(ui32* min_ms, ui32* max_ms, 
+                                 ui32* avg_ms, ui32* frames_over) {
    if (min_ms) *min_ms = g_timing.min_frame_time;
    if (max_ms) *max_ms = g_timing.max_frame_time;
    if (avg_ms) *avg_ms = g_timing.avg_frame_time;

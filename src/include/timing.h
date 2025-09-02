@@ -1,38 +1,39 @@
 #ifndef TIMING_H
 #define TIMING_H
 
+#include "def.h"
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef struct {
-   uint32_t target_fps;
-   uint32_t target_frame_time; // ms per frame
-   uint32_t frame_start_time;
-   uint32_t last_frame_time;
-   uint32_t frame_count;
+   ui32 target_fps;
+   ui32 target_frame_time; // ms per frame
+   ui32 frame_start_time;
+   ui32 last_frame_time;
+   ui32 frame_count;
    
    // performance tracking
-   uint32_t min_frame_time;
-   uint32_t max_frame_time;
-   uint32_t avg_frame_time;
-   uint32_t frames_over_budget;
+   ui32 min_frame_time;
+   ui32 max_frame_time;
+   ui32 avg_frame_time;
+   ui32 frames_over_budget; // incremented if frame took longer than target_frame_time
    
-   uint32_t game_start_time;
-   uint32_t total_game_time;
+   ui32 game_start_time;
+   ui32 total_game_time;
 } TimingState;
 
-void timing_init(uint32_t target_fps);
+void timing_init(ui32 target_fps);
 void timing_frame_start(void);
 void timing_frame_end(void);
 bool timing_should_limit_frame(void); // true if last frame was quicker than target frame time
 
-uint32_t timing_get_last_frame_time(void);
-uint32_t timing_get_frame_duration(void);
+ui32 timing_get_last_frame_time(void);
+ui32 timing_get_frame_duration(void);
 float timing_get_delta_time(void); // last frame time in seconds
-uint32_t timing_get_frame_count(void);
-uint32_t timing_get_game_time_ms(void);
+ui32 timing_get_frame_count(void);
+ui32 timing_get_game_time_ms(void);
 float timing_get_current_fps(void);
-void timing_get_performance_info(uint32_t* min_ms, uint32_t* max_ms, uint32_t* avg_ms, uint32_t* frames_over);
+void timing_get_performance_info(ui32* min_ms, ui32* max_ms, ui32* avg_ms, ui32* frames_over);
 const TimingState* timing_get_debug_state(void); // read-only pointer
 
 #endif
