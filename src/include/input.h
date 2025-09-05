@@ -43,6 +43,7 @@ typedef enum {
 } InputEvent;
 
 // TODO: device select context, set keybind context
+// TODO: rename to InputContext?
 typedef enum {
    CONTEXT_TITLE,
    CONTEXT_MENU,
@@ -150,5 +151,6 @@ bool input_is_device_connected(int device_id);
 void input_set_player_device(int player, int device_id);
 void input_reset_player_devices(void); // unassign both
 int input_get_player_device(int player);
+void input_get_player_devices(int* p1, int* p2);
 int input_get_player(int device_id); // returns 0 if unassigned
 #endif

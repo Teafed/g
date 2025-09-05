@@ -407,6 +407,11 @@ int input_get_player_device(int player) {
    return (player == 1) ? g_input.player1_device : g_input.player2_device;
 }
 
+void input_get_player_devices(int* p1, int* p2) {
+   if (p1) *p1 = g_input.player1_device;
+   if (p2) *p2 = g_input.player2_device;
+}
+
 int input_get_player(int device_id) {
    if (g_input.player1_device == device_id) return 1;
    else if (g_input.player2_device == device_id) return 2;
