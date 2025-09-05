@@ -6,12 +6,14 @@
 #include <string.h>
 
 static RendererState g_renderer = { 0 };
+ui32 palette_map[PALETTE_SIZE]; // for blitting on non-indexed surfaces
 
 static void draw_system_header(int* x, int* y);
-static void draw_system_data(SystemData data, int* x, int* y);
+static void draw_system_data(SystemData data, int* x, int* y, ui8 color);
 static void calculate_mapping(void);
 static Layer* find_layer(LayerHandle handle);
 static Layer* find_layer_by_index(ui32 index);
+static SDL_Surface* create_composite_surface(void);
 static SDL_Surface* create_layer_surface(bool can_draw_outside);
 static void resize_all_surfaces(void);
 static SDL_Color* get_palette_colors(void);
@@ -69,16 +71,15 @@ bool renderer_init(float scale_factor) {
    
    g_renderer.clear_color_index = 4; // mono-black
    g_renderer.transparent_color_index = PALETTE_TRANSPARENT;
-
-   g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                  0,
-                  (g_renderer.unit_map.x * 2) + g_renderer.unit_map.w,
-                  (g_renderer.unit_map.y * 2) + g_renderer.unit_map.h,
-                  32, SDL_PIXELFORMAT_RGBA8888);
-   if (d_dne(g_renderer.composite_surface)) {
-      renderer_cleanup();
-      return false;
+   for (int i = 0; i < PALETTE_SIZE; i++) {
+      ui8 r = (palette[i] >> 24) & 0xFF;
+      ui8 g = (palette[i] >> 16) & 0xFF;
+      ui8 b = (palette[i] >> 8) & 0xFF;
+      ui8 a = palette[i] & 0xFF;
+      palette_map[i] = SDL_MapRGBA(g_renderer.window_surface->format, r, g, b, a);
    }
+
+   g_renderer.composite_surface = create_composite_surface();
 
    g_renderer.layer_capacity = 16; // start with space for 16 layers
    g_renderer.layers = malloc(sizeof(Layer) * g_renderer.layer_capacity);
@@ -113,6 +114,8 @@ bool renderer_init(float scale_factor) {
    renderer_toggle_system_data(SYS_CURRENT_FPS, true);
    renderer_toggle_system_data(SYS_AVG_FPS, true);
    
+   d_logv(3, "composite format: %s", SDL_GetPixelFormatName(g_renderer.composite_surface->format->format));
+   d_logv(3, "window format: %s", SDL_GetPixelFormatName(g_renderer.window_surface->format->format));
    return true;
 }
 
@@ -152,7 +155,7 @@ void renderer_cleanup(void) {
 
 void renderer_clear(void) {
    if (!g_renderer.initialized) return;
-   SDL_FillRect(g_renderer.composite_surface, NULL, palette[g_renderer.clear_color_index]); // clear composite
+   SDL_FillRect(g_renderer.composite_surface, NULL, palette_map[g_renderer.clear_color_index]); // clear composite
    for (ui32 i = 0; i < g_renderer.layer_count; i++) {
       Layer* layer = find_layer_by_index(i);
       if (!layer) continue;
@@ -161,9 +164,8 @@ void renderer_clear(void) {
 }
 
 extern void scene_render(void);
-void renderer_present(void) {   
+void renderer_present(void) {
    if (!g_renderer.initialized) return;
-   
    if (g_renderer.resize_in_progress) {
       ui32 current_time = timing_get_game_time_ms();
       ui32 time_since_resize = current_time - g_renderer.resize_start_time;
@@ -184,7 +186,6 @@ void renderer_present(void) {
    }
    
    renderer_clear();
-      
    scene_render(); // get all rendering calls from current scene
    
    // composite all visible layers
@@ -200,10 +201,10 @@ void renderer_present(void) {
          SDL_BlitSurface(layer->surface, NULL, g_renderer.composite_surface, &g_renderer.unit_map);
       }
    }
-
+   
    // draw system layer
    Layer* system_layer = find_layer(g_renderer.system_layer_handle);
-   // if (false) {
+   
    if (system_layer->visible) {
       // header
       int x = -g_renderer.unit_map.x;
@@ -217,15 +218,15 @@ void renderer_present(void) {
       // system data
       for (int i = 0; i < SYS_MAX; i++) {
          if (g_renderer.system_layer_data[i]) {
-            draw_system_data(i, &x, &y);
+            int x_shadow = x + 1;
+            int y_shadow = y + 1;
+            draw_system_data(i, &x_shadow, &y_shadow, 1);
+            draw_system_data(i, &x, &y, 0);
          }
       }
       SDL_BlitSurface(system_layer->surface, NULL, g_renderer.composite_surface, NULL);
    }
    
-   // TODO: figure out the window surface format
-   // SDL_FillRect(g_renderer.window_surface, NULL, palette[g_renderer.clear_color_index]);
-   // SDL_FillRect(g_renderer.window_surface, NULL, palette[10]);
    SDL_BlitScaled(g_renderer.composite_surface, NULL,
                  g_renderer.window_surface, NULL);
    SDL_UpdateWindowSurface(g_renderer.window);
@@ -481,7 +482,7 @@ void renderer_draw_rect(LayerHandle handle, Rect rect, ui8 color_index) {
 void renderer_draw_rect_raw(Rect rect, ui8 color_index) {
    if (g_renderer.resize_in_progress || color_index >= PALETTE_SIZE) return;
    
-   SDL_FillRect(g_renderer.composite_surface, &rect, palette[color_index]);
+   SDL_FillRect(g_renderer.composite_surface, &rect, palette_map[color_index]);
 }
 
 void renderer_draw_fill(LayerHandle handle, ui8 color_index) {
@@ -565,14 +566,13 @@ static void draw_system_header(int* x, int* y) {
    renderer_draw_string(g_renderer.system_layer_handle, FONT_SHARP_8_8, "teaf/g v0.01", *x, *y, color);
 }
 
-static void draw_system_data(SystemData data, int* x, int* y) {
+static void draw_system_data(SystemData data, int* x, int* y, ui8 color) {
    LayerHandle handle = g_renderer.system_layer_handle;
    // Layer* layer = find_layer(handle);
    ui8 size = find_layer(handle)->size;
    int new_line = 8 * size; // TODO: get font tile height
    new_line += 2; // padding
    FontType font = FONT_SHARP_8_8;
-   ui8 color = 0; // mono-white
    char buffer[128];
    
    switch (data) {
@@ -754,6 +754,23 @@ static Layer* find_layer_by_index(ui32 index) {
    return layer;
 }
 
+
+static SDL_Surface* create_composite_surface(void) {
+   SDL_Surface* surface;
+   surface = SDL_CreateRGBSurfaceWithFormat(
+                  0,
+                  (g_renderer.unit_map.x * 2) + g_renderer.unit_map.w,
+                  (g_renderer.unit_map.y * 2) + g_renderer.unit_map.h,
+                  g_renderer.window_surface->format->BitsPerPixel,
+                  g_renderer.window_surface->format->format);
+   if (d_dne(surface)) {
+      d_err("couldn't recreate composite surface");
+      return NULL;
+   }
+   
+   return surface;
+}
+
 static SDL_Surface* create_layer_surface(bool can_draw_outside) {
    SDL_Surface* surface;
    if (can_draw_outside) {
@@ -771,6 +788,7 @@ static SDL_Surface* create_layer_surface(bool can_draw_outside) {
    SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND);
    SDL_SetSurfaceAlphaMod(surface, 255);
 
+   // TDOD: change to draw_fill
    SDL_FillRect(surface, NULL, g_renderer.transparent_color_index);
    
    return surface;
@@ -781,14 +799,8 @@ static void resize_all_surfaces(void) {
    d_log("");
    d_logl("recreating composite surface");
    SDL_FreeSurface(g_renderer.composite_surface);
-   g_renderer.composite_surface = SDL_CreateRGBSurfaceWithFormat(
-                  0,
-                  (g_renderer.unit_map.x * 2) + g_renderer.unit_map.w,
-                  (g_renderer.unit_map.y * 2) + g_renderer.unit_map.h,
-                  32, SDL_PIXELFORMAT_RGBA8888);
-   if (d_dne(g_renderer.composite_surface)) {
-      d_err("couldn't recreate composite surface");
-   }
+   g_renderer.composite_surface = create_composite_surface();
+   
    for (ui32 i = 0; i < g_renderer.layer_count; i++) {
       Layer* layer = find_layer_by_index(i);
       if (!layer) continue;
