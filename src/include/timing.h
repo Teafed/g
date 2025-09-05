@@ -19,8 +19,12 @@ typedef struct {
    ui32 frames_over_budget; // incremented if frame took longer than target_frame_time
    
    ui32 game_start_time;
-   ui32 total_game_time;
+   ui32 total_game_time; // updated on frame end
 } TimingState;
+
+typedef struct {
+   ui32 start_time;
+} Timer;
 
 void timing_init(ui32 target_fps);
 void timing_frame_start(void);
@@ -33,6 +37,11 @@ float timing_get_delta_time(void); // last frame time in seconds
 ui32 timing_get_frame_count(void);
 ui32 timing_get_game_time_ms(void);
 float timing_get_current_fps(void);
+
+
+Timer* timer_start(void);
+ui32 timer_end(Timer* timer);
+
 void timing_get_performance_info(ui32* min_ms, ui32* max_ms, ui32* avg_ms, ui32* frames_over);
 const TimingState* timing_get_debug_state(void); // read-only pointer
 

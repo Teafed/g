@@ -94,7 +94,17 @@ float timing_get_current_fps(void) {
    return 1000.0f / g_timing.last_frame_time;
 }
 
-// ui32 timer_start()
+Timer* timer_start(void) {
+   Timer* timer = malloc(sizeof(Timer));
+   timer->start_time = SDL_GetTicks();
+   return timer;
+}
+
+ui32 timer_end(Timer* timer) {
+   ui32 time = SDL_GetTicks() - timer->start_time;
+   free(timer);
+   return time;
+}
 
 void timing_get_performance_info(ui32* min_ms, ui32* max_ms, 
                                  ui32* avg_ms, ui32* frames_over) {
