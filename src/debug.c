@@ -223,30 +223,30 @@ void d_print_current_input_state(int dev) {
 
 void d_print_devices(void) {
    const InputSystem* g_input = input_get_debug_state();
-   printf("\n=== INPUT DEVICES DEBUG ===\n");
-   printf("Player 1 device: %d\n", g_input->player1_device);
-   printf("Player 2 device: %d\n", g_input->player2_device);
+   d_log("");
+   d_logl("P1 device = %d, ", g_input->player1_device);
+   d_logl("P2 device = %d\n", g_input->player2_device);
    
    for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
       const InputDevice* device = &g_input->devices[i];
-      printf("\nDevice[%d]:\n", i);
-      printf("  Connected: %s\n", device->connected ? "YES" : "NO");
+      d_logl("\nDevice[%d]:\n", i);
+      d_logl("  Connected: %s\n", device->connected ? "YES" : "NO");
       
       if (i == 0) {
-         printf("  Type: Keyboard\n");
+         d_logl("  Type: Keyboard\n");
       } else {
-         printf("  Type: Controller\n");
+         d_logl("  Type: Controller\n");
          if (device->info.valid_guid) {
-            printf("  Name: %s\n", device->info.name);
-            printf("  Remembered: YES\n");
+            d_logl("  Name: %s\n", device->info.name);
+            d_logl("  Remembered: YES\n");
          } else {
-            printf("  Remembered: NO\n");
+            d_logl("  Remembered: NO\n");
          }
       }
       
-      printf("  Last seen frame: %u\n", device->last_seen_frame);
+      d_logl("  Last seen frame: %u\n", device->last_seen_frame);
    }
-   printf("===========================\n\n");
+   d_logl("\n");
 }
 
 // SCENE
