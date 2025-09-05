@@ -132,6 +132,22 @@ const char* d_name_font(FontType type) {
 }
 
 // TIMING
+
+void d_timing_print_state(void) {
+   const TimingState* t = timing_get_debug_state();
+   d_log("");
+   d_var(t->target_fps);
+   d_logl("    "); d_var(t->target_frame_time);
+   d_logl("    "); d_var(t->frame_start_time);
+   d_logl("    "); d_var(t->last_frame_time);
+   d_logl("    "); d_var(t->min_frame_time);
+   d_logl("    "); d_var(t->max_frame_time);
+   d_logl("    "); d_var(t->avg_frame_time);
+   d_logl("    "); d_var(t->frames_over_budget);
+   d_logl("    "); d_var(t->game_start_time);
+   d_logl("    "); d_var(t->total_game_time);
+}
+
 void d_print_performance_info(void) {
    uint32_t min_ms = 0;
    uint32_t max_ms = 0;

@@ -75,6 +75,7 @@ void d_print_renderer_dims(void);
 const char* d_name_font(FontType type);
 
 // TIMING
+void d_timing_print_state(void);
 void d_print_performance_info(void);
 
 // INPUT
