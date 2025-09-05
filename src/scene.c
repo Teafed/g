@@ -78,7 +78,7 @@ void scene_destroy(void) {
 }
 
 void scene_change_to(SceneType type) {
-   d_logv(2, "changing scene from %s to %s", d_name_scene_type(scene_manager.current_scene), d_name_scene_type(type));
+   d_logv(2, "changing scene from %s to %s\n", d_name_scene_type(scene_manager.current_scene), d_name_scene_type(type));
    if (type >= SCENE_MAX) {
       d_err("invalid scene");
       return;
@@ -220,10 +220,13 @@ void draw_title(void) {
 // MAIN MENU SCENE
 // ============================================================================
 
+LayerHandle main_bg;
 static Menu* main_menu = NULL;
 static Menu* solo_menu = NULL;
 
 void main_menu_scene_init(void) {
+   main_bg = renderer_create_layer(false);
+   
    main_menu = menu_create(MENU_TYPE_MAIN, "MAIN MENU");
    solo_menu = menu_create(MENU_TYPE_MAIN, "SOLO MODE");
    
@@ -246,20 +249,23 @@ void main_menu_scene_update(float delta_time) {
 }
 
 void main_menu_scene_render(void) {
+   renderer_draw_fill(main_bg, 9); // brown-dark
    menu_render(main_menu);
 }
 
 void main_menu_scene_destroy(void) {
    menu_destroy(solo_menu);
    menu_destroy(main_menu);
+   renderer_destroy_layer(main_bg);
 }
 
 // ============================================================================
 // SETTINGS SCENE
 // ============================================================================
 
-static Menu* settings_menu = NULL;
+LayerHandle settings_bg;
 LayerHandle layer_input;
+static Menu* settings_menu = NULL;
 
 bool g_sound_enabled = true;
 int g_master_volume = 90;
@@ -270,6 +276,7 @@ void on_window_mode_change(int value) { renderer_set_window_mode((WindowMode)val
 void on_resize_mode_change(int value) { renderer_set_resize_mode((ResizeMode)value); }
 
 void settings_scene_init(void) {
+   settings_bg = renderer_create_layer(false);
    layer_input = renderer_create_layer(false);
    settings_menu = menu_create(MENU_TYPE_SETTINGS, "SYSTEM SETTINGS");
    
@@ -292,12 +299,15 @@ void settings_scene_update(float delta_time) {
 }
 
 void settings_scene_render(void) {
+   renderer_draw_fill(settings_bg, 17); // teal-dark
    menu_render(settings_menu);
    draw_input_display();
 }
 
 void settings_scene_destroy(void) {
    menu_destroy(settings_menu);
+   renderer_destroy_layer(layer_input);
+   renderer_destroy_layer(settings_bg);
 }
 
 typedef struct {
@@ -382,7 +392,11 @@ void draw_input_display(void) {
 // CHARACTER SELECT SCENE
 // ============================================================================
 
+LayerHandle dev_bg;
+LayerHandle charsel_bg;
+LayerHandle big_text;
 static Menu* character_menu = NULL;
+int return_device; // for going back to main menu. temporary
 
 void device_select_init(void);
 void device_select_handle_input(InputEvent event, InputState state, int device_id);
@@ -396,9 +410,15 @@ void character_select_render(void);
 void character_select_handle_scene_change(SceneType new_scene);
 
 void character_select_scene_init(void) {
+   dev_bg = renderer_create_layer(false);
+   charsel_bg = renderer_create_layer(false);
+   big_text = renderer_create_layer(false);
+   renderer_set_layer_size(big_text, 4);
+   
    // TODO: change setup based on GameModeType (already set menu's process_action()
    
    // setup for device select
+   return_device = input_get_player_device(1);
    input_reset_player_devices();
    scene_manager.session.confirmed_devices = false;
 
@@ -417,19 +437,28 @@ void character_select_scene_init(void) {
 void character_select_scene_update(float delta_time) {
    if (!scene_manager.session.confirmed_devices) {
       device_select_update(delta_time);
+      return;
    }
+   character_select_update(delta_time);
 }
 
 void character_select_scene_render(void) {
    if (!scene_manager.session.confirmed_devices) {
+      renderer_set_layer_visible(dev_bg, true);
+      renderer_set_layer_visible(charsel_bg, false);
       device_select_render();
       return;
    }
+   renderer_set_layer_visible(dev_bg, false);
+   renderer_set_layer_visible(charsel_bg, true);
    character_select_render();
 }
 
 void character_select_scene_destroy(void) {
    menu_destroy(character_menu);
+   renderer_destroy_layer(big_text);
+   renderer_destroy_layer(charsel_bg);
+   renderer_destroy_layer(dev_bg);
 }
 
 void device_select_init(void) {
@@ -446,25 +475,91 @@ void device_select_update(float delta_time) {
 }
 
 void device_select_render(void) {
-   // draw all the parts that have to be updated
+   int p1 = -1; int p2 = -1;
+   input_get_player_devices(&p1, &p2);
+
+   int devices[MAX_INPUT_DEVICES];
+   for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
+      if (input_is_device_connected(i))
+         devices[i] = i;
+      else
+         devices[i] = -1;
+   }
+
+   // TODO: please finish drawing api, drawing this way is so painful
+   
+   int offset = 64;
+   Rect l_rect = {offset, offset * 2, offset * 2 + 24, offset * 4};
+   Rect c_rect = l_rect;
+   c_rect.x += offset * 2 + offset;
+   Rect r_rect = c_rect;
+   r_rect.x += offset * 2 + offset;
+   renderer_draw_string(big_text, FONT_ACER_8_8, "Device Select", 128, 24, 5);
+
+   renderer_draw_rect(dev_bg, l_rect, 9); // brown-dark
+   Rect outliner = l_rect;
+   outliner.x += 4;
+   outliner.y += 4;
+   outliner.h -= 8;
+   outliner.w -= 8;
+   renderer_draw_rect(dev_bg, outliner, 4); // mono-black
+   
+   renderer_draw_rect(dev_bg, c_rect, 8); // brown-normal
+   outliner = c_rect;
+   outliner.x += 4;
+   outliner.y += 4;
+   outliner.h -= 8;
+   outliner.w -= 8;
+   renderer_draw_rect(dev_bg, outliner, 4); // mono-black
+   
+   renderer_draw_rect(dev_bg, r_rect, 9); // brown-dark
+   outliner = r_rect;
+   outliner.x += 4;
+   outliner.y += 4;
+   outliner.h -= 8;
+   outliner.w -= 8;
+   renderer_draw_rect(dev_bg, outliner, 4); // mono-black
+   
+   renderer_draw_string(dev_bg, FONT_ACER_8_8, "Player 1", l_rect.x + 8, l_rect.y + 8, 6); // orange-teaf
+   renderer_draw_string(dev_bg, FONT_ACER_8_8, "Player 2", r_rect.x + 8, r_rect.y + 8, 6); // orange-teaf
+   
+   for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
+      if (devices[i] == -1) continue;
+      if (devices[i] == p1) {
+         char str[128];
+         snprintf(str, sizeof(str), "Device %d", i);
+         renderer_draw_string(dev_bg, FONT_ACER_8_8, str, l_rect.x + 8, l_rect.y + 32 + (i * 16), 6); // orange-teaf
+      }
+      else if (devices[i] == p2) {
+         char str[128];
+         snprintf(str, sizeof(str), "Device %d", i);
+         renderer_draw_string(dev_bg, FONT_ACER_8_8, str, r_rect.x + 8, r_rect.y + 32 + (i * 16), 6); // orange-teaf
+      }
+      else {
+         char str[128];
+         snprintf(str, sizeof(str), "Device %d", i);
+         renderer_draw_string(dev_bg, FONT_ACER_8_8, str, c_rect.x + 8, c_rect.y + 32 + (i * 16), 6); // orange-teaf
+      }
+   }
 }
 
 void device_select_handle_input(InputEvent event, InputState state, int device_id) {
-   (void) state;
+   if (!state.pressed) return;
+
+   int p1 = -1; int p2 = -1;
+   input_get_player_devices(&p1, &p2);
+   
+   // don't accept inputs from anyone else if a device is assigned
    bool solo_mode = true;
-   if (scene_manager.session.mode == GAME_MODE_VERSUS)
-      solo_mode = false;
-
-   if (solo_mode && ((input_get_player_device(1) != -1) || (input_get_player_device(2) != -1)))
-      return;
-
-   int p1 = input_get_player_device(1);
-   int p2 = input_get_player_device(2);
-
+   if (scene_manager.session.mode == GAME_MODE_VERSUS) solo_mode = false;
+   if (solo_mode && (p1 != -1 || p2 != -1)
+       && input_get_player(device_id) == 0) return;
+   
    switch (event) {
    case INPUT_A:
-      if (p1 == device_id || p2 == device_id) {
-         scene_manager.session.confirmed_devices = true; // confirm devices
+      // confirming devices controls update and render route
+      if (device_id == p1 || device_id == p2) {
+         scene_manager.session.confirmed_devices = true;
          character_select_init();
       }
       else if (p1 == -1)
@@ -472,35 +567,45 @@ void device_select_handle_input(InputEvent event, InputState state, int device_i
       else if (p2 == -1)
          input_set_player_device(2, device_id);
       break;
+      
    case INPUT_LEFT:
-      if (p2 == device_id)
+      if (device_id == p2)
          input_set_player_device(2, -1);
       else if (p1 == -1)
          input_set_player_device(1, device_id);
       break;
+      
    case INPUT_RIGHT:
-      if (p1 == device_id)
+      if (device_id == p1)
          input_set_player_device(1, -1);
       else if (p2 == -1)
          input_set_player_device(2, device_id);
       break;
+      
    case INPUT_B:
-      if (p1 != device_id && p2 != device_id)
-         character_select_handle_scene_change(SCENE_MAIN_MENU); // return to main menu
-      else if (p1 == device_id)
+      if ((device_id != p1) && (device_id != p2)) {
+         scene_change_to(SCENE_MAIN_MENU); // return to main menu
+         input_set_player_device(1, return_device);
+         input_set_player_device(2, -1);
+      }
+      else if (device_id == p1)
          input_set_player_device(1, -1);
-      else if (p2 == device_id)
+      else if (device_id == p2)
          input_set_player_device(2, -1);
       break;
+      
    case INPUT_START:
-      if (p1 == device_id || p2 == device_id) {
+      if (device_id == p1 || device_id == p2) {
          scene_manager.session.confirmed_devices = true; // confirm devices
          character_select_init();
       }
       break;
+      
    default:
       break;
    }
+   input_get_player_devices(&p1, &p2);
+   d_logv(3, "P1 device = %d, P2 device = %d", p1, p2);
 }
 
 void character_select_init(void) {
@@ -514,6 +619,7 @@ void character_select_update(float delta_time) {
 }
 
 void character_select_render(void) {
+   renderer_draw_string(big_text, FONT_ACER_8_8, "Character Select", 112, 24, 5);
    menu_render(character_menu);
 }
 
