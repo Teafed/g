@@ -12,8 +12,9 @@ static Menu* last_active_menu = NULL; // to track when active menu changes
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size);
 static void process_action(MenuAction action, int data, int player);
 static void hide_all_layers(Menu* menu);
-static void menu_render_main(Menu* menu, int chain_position);
-static void menu_render_settings(Menu* menu, int chain_position);
+static void menu_draw_main(Menu* menu, int chain_position);
+static void menu_draw_settings(Menu* menu);
+static void menu_draw_charsel(Menu* menu);
 
 // CORE FUNCTIONS
 void menu_system_init(void) {
@@ -66,9 +67,12 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          if (menu->options[*selected].unconfirmed_choice != -1) break;
       }
+      // go to prev option
       do {
-         (*selected)--;
-         if (*selected < 0) *selected = menu->option_count - 1;
+         // TODO: assuming charsel has row size 3 rn, round it up
+         int amt = menu->options[*selected].type == OPTION_TYPE_CHARSEL ? 3 : 1;
+         (*selected) -= amt;
+         if (*selected < 0) *selected = menu->option_count + (*selected); // TODO: i don't think this accounts for disableds
       } while (!menu->options[*selected].enabled && menu->option_count > 1);
       break;
       
@@ -77,16 +81,24 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          if (menu->options[*selected].unconfirmed_choice != -1) break;
       }
+      // go to next option
       do {
-         (*selected)++;
-         if (*selected >= menu->option_count) *selected = 0;
+         int amt = menu->options[*selected].type == OPTION_TYPE_CHARSEL ? 3 : 1;
+         (*selected) += amt;
+         if (*selected >= menu->option_count) *selected = (*selected) - menu->option_count;
       } while (!menu->options[*selected].enabled && menu->option_count > 1);
       break;
       
    case INPUT_LEFT:
       if (!any_enabled) break;
-      // handle settings navigation
-      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
+      if (menu->options[*selected].type == OPTION_TYPE_CHARSEL) {
+         do {
+            int amt = *selected % 3 == 0 ? (-3 + 1) : 1;
+            *selected -= amt;
+            if (*selected < 0) *selected += amt;
+         } while (!menu->options[*selected].enabled && menu->option_count > 1);
+      }
+      else if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          MenuOption* opt = &menu->options[*selected];
          if (opt->current_choice) {
             if (*opt->current_choice > 0 && opt->unconfirmed_choice == -1) {
@@ -108,8 +120,14 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
       
    case INPUT_RIGHT:
       if (!any_enabled) break;
-      // handle settings navigation
-      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
+      if (menu->options[*selected].type == OPTION_TYPE_CHARSEL) {
+         do {
+            int amt = (*selected + 1) % 3 == 0 ? (-3 + 1) : 1;
+            *selected += amt;
+            if (*selected >= menu->option_count) *selected -= amt;
+         } while (!menu->options[*selected].enabled && menu->option_count > 1);
+      }
+      else if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
          MenuOption* opt = &menu->options[*selected];
          if (opt->current_choice) {
             if (*opt->current_choice < opt->choice_count - 1 && opt->unconfirmed_choice == -1) {
@@ -225,16 +243,16 @@ void menu_render(Menu* root) {
       // render based on menu type
       switch (menu->type) {
       case MENU_TYPE_MAIN:
-         menu_render_main(menu, chain_length - 1 - i); // pass position in chain
+         menu_draw_main(menu, chain_length - 1 - i); // pass position in chain
          break;
       case MENU_TYPE_SETTINGS:
-         menu_render_settings(menu, chain_length - 1 - i);
+         menu_draw_settings(menu);
          break;
       case MENU_TYPE_CHARSEL:
-         // menu_render_charsel_type(menu);
+         menu_draw_charsel(menu);
          break;
       case MENU_TYPE_PAUSE:
-         // menu_render_pause_type(menu);
+         // menu_draw_pause(menu);
          break;
       default:
          return;
@@ -503,7 +521,7 @@ static void hide_all_layers(Menu* menu) {
    }
 }
 
-static void menu_render_main(Menu* menu, int chain_position) {
+static void menu_draw_main(Menu* menu, int chain_position) {
    if (!menu) return;
    
    // clear the layer
@@ -528,14 +546,13 @@ static void menu_render_main(Menu* menu, int chain_position) {
    }
 }
 
-static void menu_render_settings(Menu* menu, int chain_position) {
+static void menu_draw_settings(Menu* menu) {
    if (!menu) return;
    
    // clear the menu's layer
    renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
    
-   // calculate position based on chain position
-   int base_x = 50 + (chain_position * 200); // 200 pixels between columns
+   int base_x = 50;
    int base_y = 50;
    
    // draw menu title
@@ -554,5 +571,58 @@ static void menu_render_settings(Menu* menu, int chain_position) {
       char display_text[128];
       format_option_text(&menu->options[i], display_text, sizeof(display_text));
       renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, display_text, base_x, current_y, color);
+   }
+}
+
+static void menu_draw_charsel(Menu* menu) {
+   if (!menu) return;
+   
+   // clear the layer
+   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
+   
+   int base_x = 50;
+   int base_y = 50;
+   
+   // grid configuration - adjust these as needed
+   int cols = 3; // characters per row
+   int cell_width = 120;
+   int cell_height = 60;
+   int grid_start_x = base_x;
+   int grid_start_y = base_y + 40; // space below title
+   
+   // draw character grid
+   for (int i = 0; i < menu->option_count; i++) {
+      int row = i / cols;
+      int col = i % cols;
+      
+      int cell_x = grid_start_x + (col * cell_width);
+      int cell_y = grid_start_y + (row * cell_height);
+      
+      uint8_t color = 1; // default color
+      bool is_selected = false;
+      
+      // check if any player has this option selected
+      for (int player = 1; player <= MAX_PLAYERS; player++) {
+         // if (input_get_player_device(player) == -1) continue;
+         if (i == menu->selected_option[player - 1]) {
+            is_selected = true;
+            color = 19 + (player - 1); // start at blue-sky
+            break;
+         }
+      }
+      
+      if (!menu->options[i].enabled) color = 3; // disabled color
+      
+      // draw character name centered in cell
+      int text_x = cell_x + (cell_width / 2) - ((strlen(menu->options[i].text) * 8) / 2);  // assuming 8px wide font
+      int text_y = cell_y + (cell_height / 2) - 4; // assuming 8px tall font
+      
+      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
+                          text_x, text_y, color);
+      // TODO
+      if (is_selected && menu->options[i].enabled) {
+         // renderer_draw_rect_outline(menu->layer_handle, cell_x - 2, cell_y - 2, 
+         //                           cell_width + 4, cell_height + 4, color);
+      }
    }
 }
