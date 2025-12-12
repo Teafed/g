@@ -103,7 +103,7 @@ bool renderer_init(float scale_factor) {
    }
    renderer_set_layer_size(g_renderer.system_layer_handle, 1);
    
-   if (file_load_sheets(&g_renderer.sprite_array, &g_renderer.font_array) == 0) {
+   if (file_load_sheets(&g_renderer.font_array, &g_renderer.sprite_array) == 0) {
       renderer_cleanup();
       return false;
    }
@@ -205,6 +205,7 @@ void renderer_present(void) {
    // draw system layer
    Layer* system_layer = find_layer(g_renderer.system_layer_handle);
    
+   // if (false) {
    if (system_layer->visible) {
       // header
       int x = -g_renderer.unit_map.x;
@@ -533,7 +534,7 @@ void renderer_draw_string(LayerHandle handle, FontType font_type, const char* st
          x += (font->tile_w * layer->size);
          continue;
       }
-   
+
       int sheet_index = (int)str[i] - font->ascii_start;
       if (sheet_index < 0 || sheet_index >= (font->image_w * font->image_h)) continue;
 

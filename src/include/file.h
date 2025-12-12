@@ -13,16 +13,22 @@ typedef struct { // TODO: make sure the data is 8-bit indexed colors
    uint8_t data[];
 } ImageData;
 
+// TODO: handle if the sheet doesn't exist
+         // also maybe i don't need to specify dims in enum name idk
 typedef enum {
    FONT_ACER_8_8,
    FONT_COMPIS_8_16,
+   FONT_MASTER_8_8,
+   FONT_MASTER_8_8_BOLD,
    FONT_SHARP_8_8,
    FONT_VERITE_8_8,
    FONT_VERITE_9_8,
    FONT_MAX
 } FontType;
+#define FONT_DEFAULT FONT_ACER_8_8
 
 typedef struct {
+   FontType type; // TODO: add to file_load_sheets 
    const char* fname;
    int tile_w;
    int tile_h;
@@ -54,7 +60,7 @@ typedef struct {
    int sprite_capacity;
 } SpriteArray;
 
-int file_load_sheets(SpriteArray* sprite_array, FontArray* fonts); // called once in renderer_init(), returns 0 on failure
+int file_load_sheets(FontArray* fonts, SpriteArray* sprites); // called once in renderer_init(), returns 0 on failure
 void file_unload_sheets(FontArray* fonts, SpriteArray* sprites);
 Font* file_get_font(FontArray* font_array, FontType type);
 Sprite* file_get_sprite(SpriteArray* sprites, const char* sprite_name);
