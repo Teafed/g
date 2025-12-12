@@ -28,7 +28,7 @@ bool game_handle_flags(int argc, char *argv[], int* logging_mode, float* scale_f
 
 int main(int argc, char* argv[]) {
    // initialize w flags
-   int logging_mode = 1;
+   int logging_mode = LOG_VERBOSITY;
    float scale_factor = 1.0f;
    int framerate = 60;
    if (!game_handle_flags(argc, argv, &logging_mode, &scale_factor, &framerate))
@@ -42,11 +42,13 @@ int main(int argc, char* argv[]) {
    while (g_game.state == GAME_RUNNING) {
       timing_frame_start();
       float delta_time = timing_get_delta_time();
+
       game_handle_events(delta_time);  // input & devices
       game_update(delta_time);         // calculations for next frame
       game_render();                   // render next frame
+      
       timing_frame_end();
-
+      
       if (timing_should_limit_frame()) { SDL_Delay(timing_get_frame_duration()); }
       // if (timing_get_frame_count() == 3) { game_shutdown(); }
    }

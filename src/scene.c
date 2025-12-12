@@ -194,7 +194,7 @@ void update_dvd(Rect* rect, int amt) {
 
 void draw_dvd(void) {
    renderer_draw_rect(layer_sized, moving_box, box_color);
-   renderer_draw_string(layer_sized, FONT_ACER_8_8, "DVD", moving_box.x + 28, moving_box.y + 42, 4);
+   renderer_draw_string(layer_sized, FONT_MASTER_8_8, "DVD", moving_box.x + 28, moving_box.y + 42, 4);
 }
 
 void draw_title(void) {
@@ -211,9 +211,9 @@ void draw_title(void) {
    renderer_draw_rect(layer_sized, border4, 10);
 
    renderer_draw_rect(layer_sized, title_rect, 7);
-   
-   renderer_draw_string(layer_sized, FONT_ACER_8_8, "This is the title screen.", 100, 30, 4);
-   renderer_draw_string(layer_sized, FONT_ACER_8_8, "   Press [j] to start.", 100, 55, 4);
+
+   renderer_draw_string(layer_sized, FONT_DEFAULT, "This is the title screen.", 100, 30, 4);
+   renderer_draw_string(layer_sized, FONT_DEFAULT, "   Press [j] to start.", 100, 55, 4);
 }
 
 // ============================================================================

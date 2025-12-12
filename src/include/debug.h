@@ -62,6 +62,8 @@ static inline void d__var_ptr(void* x, const char* name) {
    default: d__var_ptr \
 )(x, #x)
 
+// TODO: make d_name() to name enums generally
+
 // RENDERER
 #include "renderer.h" // for DisplayResolution, WindowMode
 const char* d_name_display_resolution(DisplayResolution res);

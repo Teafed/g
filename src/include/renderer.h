@@ -67,7 +67,7 @@ typedef struct {
    bool initialized;
    SDL_Window* window;
    SDL_Surface* window_surface;     // window's surface for blitting
-   SDL_Surface* composite_surface;  // truecolor surface, composite of all layers
+   SDL_Surface* composite_surface;  // composite of all layers, same pixel format as window
    
    DisplayResolution display_resolution;
    float scale_factor;

@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// #define time float
+
 typedef struct {
    ui32 target_fps;
    ui32 target_frame_time; // ms per frame

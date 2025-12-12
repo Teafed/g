@@ -124,12 +124,17 @@ const char* d_name_font(FontType type) {
    static const char* names[] = {
       "font_Acer710-CGA_8x8.bmp",   // FONT_ACER_8_8
       "font_Compis_8x16.bmp",       // FONT_COMPIS_8_16
+      "font_Master_8x8.bmp",        // FONT_MASTER_8_8
+      "font_MasterBold_8x8.bmp",    // FONT_MASTER_8_8_BOLD
       "font_Sharp-PC3K_8x8.bmp",    // FONT_SHARP_8_8
       "font_Verite_8x8.bmp",        // FONT_VERITE_8_8
       "font_Verite_9x8.bmp"         // FONT_VERITE_9_8
    };
    return (type >= 0 && type < FONT_MAX) ? names[type] : "UNKNOWN!";
 }
+
+// TODO: make reverse where u can find enum from filename
+//       prolly should make filename array defined in file.h
 
 // TIMING
 
