@@ -2,6 +2,9 @@
 obj/
 bin/
 
+# misc junk folder
+h/
+
 # common editor/ide files
 *.swp
 *.swo
