@@ -3,6 +3,10 @@
 
 #define SAFE_FREE(p) do { free(p); (p) = NULL; } while(0)
 
+#define VX(v) ((v).x)
+#define VY(v) ((v).y)
+#define VZ(v) ((v).z)
+
 #include <stdint.h>
 typedef uint8_t   ui8;
 typedef uint16_t  ui16;

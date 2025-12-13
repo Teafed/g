@@ -1,17 +1,18 @@
 // world.c
 #include "world.h"
+#include <stdio.h>
 
-World world_create_2d(svec2 origin, svec2 bounds) {
+World world_create_2d(fvec2 origin, fvec2 bounds) {
    World r;
-   r.dim = ROOM_DIM_2D;
+   r.dim = WORLD_DIM_2D;
    r.dim2.origin2 = origin;
    r.dim2.bounds2 = bounds;
    return r;
 }
 
-World world_create_3d(svec3 origin, svec3 bounds) {
+World world_create_3d(fvec3 origin, fvec3 bounds) {
    World r;
-   r.dim = ROOM_DIM_3D;
+   r.dim = WORLD_DIM_3D;
    r.dim3.origin3 = origin;
    r.dim3.bounds3 = bounds;
    return r;
@@ -19,7 +20,7 @@ World world_create_3d(svec3 origin, svec3 bounds) {
 
 bool world_contains_point(const World* r, fvec3 p) {
    if (!r) return false;
-   if (r->dim == ROOM_DIM_2D) {
+   if (r->dim == WORLD_DIM_2D) {
       float x = VX(p), y = VY(p);
       float ox = VX(r->dim2.origin2), oy = VY(r->dim2.origin2);
       float bx = VX(r->dim2.bounds2), by = VY(r->dim2.bounds2);
@@ -35,7 +36,7 @@ bool world_contains_point(const World* r, fvec3 p) {
 // DEBUG
 static int world_to_string(const World* r, char* buf, int buf_size) {
    if (!r) return 0;
-   if (r->dim == ROOM_DIM_2D) {
+   if (r->dim == WORLD_DIM_2D) {
       return snprintf(
          buf, (size_t)buf_size,
          "World2D{origin=(%d,%d), bounds=(%d,%d)}",

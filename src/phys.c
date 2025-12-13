@@ -4,25 +4,15 @@
 #include <stdio.h>
 #include <string.h> // memset
 
-static inline float fvec3_len2(fvec3 v) {
-   return VX(v)*VX(v) + VY(v)*VY(v) + VZ(v)*VZ(v);
-}
-static inline fvec3 fvec3_add(fvec3 a, fvec3 b) {
-   fvec3 r = { VX(a)+VX(b), VY(a)+VY(b), VZ(a)+VZ(b) };
-   return r;
-}
-static inline fvec3 fvec3_scale(fvec3 a, float s) {
-   fvec3 r = { VX(a)*s, VY(a)*s, VZ(a)*s };
-   return r;
-}
-
 typedef struct { fvec3 target; float G; } AttractData;
-static void attract_force(Affector* a, Body *b, float dt) {
+static void attract_force(Affector* a, Body* b, float dt) {
    (void)dt;
-   AttractData *ad = (AttractData*)a->userdata;
-   fvec3 d = (fvec3){ ad->target.x - b->pos.x,
-                      ad->target.y - b->pos.y,
-                      ad->target.z - b->pos.z };
+   (void)a;
+   (void)b;
+   // AttractData* ad = (AttractData*)a->userdata;
+   // fvec3 d = (fvec3){ ad->target.x - b->pos.x,
+   //                    ad->target.y - b->pos.y,
+   //                    ad->target.z - b->pos.z };
    // bodyx_add_force(bx, scale(d, ad->G));
 }
 
@@ -39,9 +29,9 @@ Body body_create(fvec3 pos, fvec3 vel, float rot, uint8_t flags) {
    return b;
 }
 
-void body_set_pos(Body *b, fvec3 pos) { if (b) b->pos = pos; }
-void body_set_vel(Body *b, fvec3 vel) { if (b) b->vel = vel; }
-void body_set_rot(Body *b, float rot) { if (b) b->rot = rot; }
+void body_set_pos(Body* b, fvec3 pos) { if (b) b->pos = pos; }
+void body_set_vel(Body* b, fvec3 vel) { if (b) b->vel = vel; }
+void body_set_rot(Body* b, float rot) { if (b) b->rot = rot; }
 
 bool body_possess(Body *b) {
    if (!b) return false;
@@ -83,11 +73,9 @@ static int body_to_string(const Body *b, char *buf, int buf_size) {
         (double)b->rot,
         b->flags,
         body_has(b, BODY_FLAG_POSSESSABLE) ? " possessable" : "",
-        body_has(b, BODY_FLAG_POSSESSED)   ? " possessed"   : "",
-        body_has(b, BODY_FLAG_GROUNDED)    ? " grounded"    : ""
-   );
-}
-
+        body_has(b, BODY_FLAG_POSSESSED) ? " possessed" : "",
+        body_has(b, BODY_FLAG_GROUNDED) ? " grounded" : "" );
+   }
 // STEP
 void step_bodies(Body **list, int count, WorldParams wp, float dt) {
    for (int i = 0; i < count; ++i) {
@@ -102,9 +90,9 @@ void step_bodies(Body **list, int count, WorldParams wp, float dt) {
 
       // apply affectors
       for (int j = 0; j < b->aff_count; ++j) {
-         Affector *a = b->affs[j];
-         if (a->apply_force) a->apply_force(a, b, dt);
-         if (a->tick_state)  a->tick_state(a, b, dt);
+         // Affector *a = b->affs[j];
+         // if (a->apply_force) a->apply_force(a, b, dt);
+         // if (a->tick_state)  a->tick_state(a, b, dt);
       }
 
       // drag
