@@ -1,8 +1,9 @@
 #include "timing.h"
-#include "renderer.h"
 #include "input.h"
 #include "scene.h"
 #include "debug.h"
+
+#include <liren/liren.h>
 #include <SDL2/SDL.h>
 
 extern int LOG_VERBOSITY;
@@ -17,6 +18,7 @@ typedef struct {
 } Game;
 
 Game g_game = { 0 };
+static LiRen* g_liren = NULL;
 
 bool game_init(float scale_factor, int framerate);
 void game_update(float delta_time);
@@ -56,6 +58,13 @@ int main(int argc, char* argv[]) {
    return 0;
 }
 
+static void liren_log_adapter(void* user, const char* msg) {
+   (void)user;
+   // route to log system
+   d_log("%s", msg);
+}
+
+
 bool game_init(float scale_factor, int framerate) {
    // init SDL
    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0) {
@@ -63,10 +72,25 @@ bool game_init(float scale_factor, int framerate) {
       return false;
    }
 
-   timing_init(framerate);   
-   if (!renderer_init(scale_factor)) return false;
+   timing_init(framerate);
+
+   // liren config
+   LR_Config cfg;
+   cfg.scale_factor  = scale_factor;
+   cfg.resolution    = LR_RES_FWVGA;          // or LR_RES_VGA if you prefer
+   cfg.resize_mode   = LR_RESIZE_FIT;         // matches your old behaviour
+   cfg.window_mode   = LR_WINDOW_WINDOWED;
+   cfg.log_fn        = liren_log_adapter;
+   cfg.log_user_data = NULL;
+   g_liren = lr_create(&cfg);
+   if (!g_liren) {
+      d_err("failed to create LiRen renderer");
+      return false;
+   }
+   lr_set_clear_color(g_liren, 4);
+   
    input_init();
-   scene_init();
+   scene_init(g_liren);
 
    g_game.state = GAME_RUNNING;
    d_log("Initialized :)\n");
@@ -76,14 +100,19 @@ bool game_init(float scale_factor, int framerate) {
 
 void game_handle_events(float delta_time) {
    SDL_Event e;
-
+   
+   // TODO: use liren_handle_event
    while (SDL_PollEvent(&e)) {
       switch (e.type) {
       case SDL_QUIT:
          game_shutdown();
          return;
       case SDL_WINDOWEVENT:
-         renderer_handle_window_event(&e);
+         if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+            if (g_liren) {
+               lr_on_window_resized(g_liren, e.window.data1, e.window.data2);
+            }
+         }
          break;
       case SDL_APP_LOWMEMORY:
          d_log("THE GAME IS LOW ON MEMORY!!!!!!!!");
@@ -104,21 +133,30 @@ void game_update(float delta_time) {
 }
 
 void game_render(void) {
-   renderer_present();
+   if (!g_liren) return;
+
+   lr_begin_frame(g_liren);
+   scene_render(g_liren);
+   lr_end_frame(g_liren);
 }
 
 void game_escape(uint32_t timer) {            
    if (timer >= 255) game_shutdown();
-   else renderer_draw_system_quit((uint8_t)timer);
+   // TODO: reimplement quit overlay in liren
+   // else renderer_draw_system_quit((uint8_t)timer);
 }
 
 void game_shutdown(void) {
    d_logl("\n");
    d_log("shutting down the game......");
    g_game.state = GAME_QUIT;
+   
    scene_destroy();
    input_shutdown();
-   renderer_cleanup();
+   if (g_liren) {
+      lr_destroy(g_liren);
+      g_liren = NULL;
+   }
    SDL_Quit();
 }
 

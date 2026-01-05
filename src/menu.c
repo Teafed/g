@@ -1,5 +1,4 @@
 #include "menu.h"
-#include "renderer.h"
 #include "file.h"
 #include "scene.h"
 #include "debug.h"
@@ -11,10 +10,10 @@ static Menu* g_active_menu = NULL;
 static Menu* last_active_menu = NULL; // to track when active menu changes
 static void format_option_text(MenuOption* opt, char* buffer, int buffer_size);
 static void process_action(MenuAction action, int data, int player);
-static void hide_all_layers(Menu* menu);
-static void menu_draw_main(Menu* menu, int chain_position);
-static void menu_draw_settings(Menu* menu);
-static void menu_draw_charsel(Menu* menu);
+static void hide_all_layers(Menu* menu, LiRen* r);
+static void menu_draw_main(Menu* menu, int chain_position, LiRen* r);
+static void menu_draw_settings(Menu* menu, LiRen* r);
+static void menu_draw_charsel(Menu* menu, LiRen* r);
 
 // CORE FUNCTIONS
 void menu_system_init(void) {
@@ -22,7 +21,7 @@ void menu_system_init(void) {
    g_active_menu = NULL;
 }
 
-Menu* menu_create(MenuType type, const char* title) {
+Menu* menu_create(MenuType type, const char* title, LiRen* r) {
    Menu* menu = malloc(sizeof(Menu));
    if (d_dne(menu)) return NULL;
    
@@ -36,7 +35,7 @@ Menu* menu_create(MenuType type, const char* title) {
       menu->selected_option[i] = 0;
    }
 
-   menu->layer_handle = renderer_create_layer(false);
+   menu->layer_handle = lr_layer_create(r, false);
    menu->parent = NULL;
 
    return menu;
@@ -211,7 +210,7 @@ void menu_handle_input(InputEvent event, InputState state, int device_id) {
    }
 }
 
-void menu_render(Menu* root) {
+void menu_render(Menu* root, LiRen* r) {
    if (!root) return;
    
    int max_depth = 32; // max menus to render in a chain
@@ -228,10 +227,10 @@ void menu_render(Menu* root) {
    // probably figure out the design of that screen first, but maybe would be good to support players being able to control individual submenu
    
    if (g_active_menu != last_active_menu) {
-      hide_all_layers(root);
+      hide_all_layers(root, r);
       for (int i = chain_length - 1; i >= 0; i--) {
          Menu* menu = chain[i];
-         renderer_set_layer_visible(menu->layer_handle, true);
+         lr_layer_set_visible(r, menu->layer_handle, true);
       }
       last_active_menu = g_active_menu;
    }
@@ -243,13 +242,13 @@ void menu_render(Menu* root) {
       // render based on menu type
       switch (menu->type) {
       case MENU_TYPE_MAIN:
-         menu_draw_main(menu, chain_length - 1 - i); // pass position in chain
+         menu_draw_main(menu, chain_length - 1 - i, r); // pass position in chain
          break;
       case MENU_TYPE_SETTINGS:
-         menu_draw_settings(menu);
+         menu_draw_settings(menu, r);
          break;
       case MENU_TYPE_CHARSEL:
-         menu_draw_charsel(menu);
+         menu_draw_charsel(menu, r);
          break;
       case MENU_TYPE_PAUSE:
          // menu_draw_pause(menu);
@@ -260,11 +259,11 @@ void menu_render(Menu* root) {
    }
 }
 
-void menu_destroy(Menu* menu) {
+void menu_destroy(Menu* menu, LiRen* r) {
    if (d_dne(menu)) return;
    
    // destroy layer
-   renderer_destroy_layer(menu->layer_handle);
+   lr_layer_destroy(r, menu->layer_handle);
    
    free(menu);
    menu = NULL;
@@ -509,120 +508,121 @@ static void process_action(MenuAction action, int data, int player) {
    }
 }
 
-static void hide_all_layers(Menu* menu) {
+static void hide_all_layers(Menu* menu, LiRen* r) {
    if (!menu) return;
    
-   renderer_set_layer_visible(menu->layer_handle, false);
+   lr_layer_set_visible(r, menu->layer_handle, false);
    
    for (int i = 0; i < menu->option_count; i++) {
       if (menu->options[i].type == OPTION_TYPE_SUBMENU) {
-         hide_all_layers(menu->options[i].child);
+         hide_all_layers(menu->options[i].child, r);
       }
    }
 }
 
-static void menu_draw_main(Menu* menu, int chain_position) {
+static void menu_draw_main(Menu* menu, int chain_position, LiRen* r) {
    if (!menu) return;
    
    // clear the layer
-   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
+   // lr_draw_fill(r, menu->layer_handle, PALETTE_TRANSPARENT);
+   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
    
    // calculate position based on chain position
-   int base_x = 50 + (chain_position * 200); // 200 pixels between columns
-   int base_y = 50;
+   // int base_x = 50 + (chain_position * 200); // 200 pixels between columns
+   // int base_y = 50;
    
    // draw menu title
-   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
+   // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
    
    // draw options
-   for (int i = 0; i < menu->option_count; i++) {
-      uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
-      if (!menu->options[i].enabled) {
-         color = 3; // disabled color
-      }
+   // for (int i = 0; i < menu->option_count; i++) {
+      // uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
+      // if (!menu->options[i].enabled) {
+         // color = 3; // disabled color
+      // }
       
-      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
-                          base_x, base_y + 30 + (i * 20), color);
-   }
+      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
+                          // base_x, base_y + 30 + (i * 20), color);
+   // }
 }
 
-static void menu_draw_settings(Menu* menu) {
+static void menu_draw_settings(Menu* menu, LiRen* r) {
    if (!menu) return;
    
    // clear the menu's layer
-   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
+   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
    
    int base_x = 50;
    int base_y = 50;
    
    // draw menu title
-   renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
+   // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
    
    // draw options
-   for (int i = 0; i < menu->option_count; i++) {
-      uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
-      if (!menu->options[i].enabled) {
-         color = 3; // disabled color
-      }
+   // for (int i = 0; i < menu->option_count; i++) {
+      // uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
+      // if (!menu->options[i].enabled) {
+         // color = 3; // disabled color
+      // }
 
-      int current_y = base_y + 30 + (i * 20);
+      // int current_y = base_y + 30 + (i * 20);
 
       // draw option text
-      char display_text[128];
-      format_option_text(&menu->options[i], display_text, sizeof(display_text));
-      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, display_text, base_x, current_y, color);
-   }
+      // char display_text[128];
+      // format_option_text(&menu->options[i], display_text, sizeof(display_text));
+      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, display_text, base_x, current_y, color);
+   // }
 }
 
-static void menu_draw_charsel(Menu* menu) {
+static void menu_draw_charsel(Menu* menu, LiRen* r) {
    if (!menu) return;
    
    // clear the layer
-   renderer_draw_fill(menu->layer_handle, PALETTE_TRANSPARENT);
+   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
    
-   int base_x = 50;
-   int base_y = 50;
-   
+   // int base_x = 50;
+   // int base_y = 50;
+   // 
    // grid configuration - adjust these as needed
-   int cols = 3; // characters per row
-   int cell_width = 120;
-   int cell_height = 60;
-   int grid_start_x = base_x;
-   int grid_start_y = base_y + 40; // space below title
+   // int cols = 3; // characters per row
+   // int cell_width = 120;
+   // int cell_height = 60;
+   // int grid_start_x = base_x;
+   // int grid_start_y = base_y + 40; // space below title
    
    // draw character grid
-   for (int i = 0; i < menu->option_count; i++) {
-      int row = i / cols;
-      int col = i % cols;
-      
-      int cell_x = grid_start_x + (col * cell_width);
-      int cell_y = grid_start_y + (row * cell_height);
-      
-      uint8_t color = 1; // default color
-      bool is_selected = false;
+   // for (int i = 0; i < menu->option_count; i++) {
+      // int row = i / cols;
+      // int col = i % cols;
+      // 
+      // int cell_x = grid_start_x + (col * cell_width);
+      // int cell_y = grid_start_y + (row * cell_height);
+      // 
+      // uint8_t color = 1; // default color
+      // bool is_selected = false;
       
       // check if any player has this option selected
-      for (int player = 1; player <= MAX_PLAYERS; player++) {
+      // for (int player = 1; player <= MAX_PLAYERS; player++) {
          // if (input_get_player_device(player) == -1) continue;
-         if (i == menu->selected_option[player - 1]) {
-            is_selected = true;
-            color = 19 + (player - 1); // start at blue-sky
-            break;
-         }
-      }
+         // if (i == menu->selected_option[player - 1]) {
+            // is_selected = true;
+            // color = 19 + (player - 1); // start at blue-sky
+            // break;
+         // }
+      // }
       
-      if (!menu->options[i].enabled) color = 3; // disabled color
+      // if (!menu->options[i].enabled) color = 3; // disabled color
       
       // draw character name centered in cell
-      int text_x = cell_x + (cell_width / 2) - ((strlen(menu->options[i].text) * 8) / 2);  // assuming 8px wide font
-      int text_y = cell_y + (cell_height / 2) - 4; // assuming 8px tall font
+      // int text_x = cell_x + (cell_width / 2) - ((strlen(menu->options[i].text) * 8) / 2);  // assuming 8px wide font
+      // int text_y = cell_y + (cell_height / 2) - 4; // assuming 8px tall font
       
-      renderer_draw_string(menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
-                          text_x, text_y, color);
+      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
+                          // text_x, text_y, color);
       // TODO
-      if (is_selected && menu->options[i].enabled) {
+      // if (is_selected && menu->options[i].enabled) {
          // renderer_draw_rect_outline(menu->layer_handle, cell_x - 2, cell_y - 2, 
          //                           cell_width + 4, cell_height + 4, color);
-      }
-   }
+      // }
+   // }
 }

@@ -1,6 +1,8 @@
 #ifndef MENU_H
 #define MENU_H
 
+#include "input.h"
+#include <liren/liren.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -76,8 +78,6 @@ typedef struct MenuOption {
    };
 } MenuOption;
 
-#include "input.h"
-#include "renderer.h"
 typedef struct Menu {
    char title[MAX_MENU_TITLE_LEN];
    MenuType type;
@@ -85,16 +85,16 @@ typedef struct Menu {
    int option_count;
    int selected_option[MAX_PLAYERS];  // per-player selection
    
-   LayerHandle layer_handle;
+   LR_LayerHandle layer_handle;
    struct Menu* parent;
 } Menu;
 
 // core functions
 void menu_system_init(void); // called once in scene_init()
-Menu* menu_create(MenuType type, const char* title);
+Menu* menu_create(MenuType type, const char* title, LiRen* r);
 void menu_handle_input(InputEvent event, InputState state, int device_id);
-void menu_render(Menu* root); // menu points to root
-void menu_destroy(Menu* menu); // called in x_scene_destroy()
+void menu_render(Menu* root, LiRen* r); // menu points to root
+void menu_destroy(Menu* menu, LiRen* r); // called in x_scene_destroy()
 void menu_system_cleanup(void); // just set g_active_menu to NULL
 
 // option management

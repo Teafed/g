@@ -57,7 +57,7 @@ bool d__dne(void* ptr, const char* name, const char* func, const char* file, int
    }
    return false;
 }
-
+/*
 const char* d_name_rect(Rect* rect) {
    static char buffer[64];
    snprintf(buffer, sizeof(buffer), "[ %d, %d, %d, %d ]", rect->x, rect->y, rect->w, rect->h);
@@ -118,7 +118,7 @@ void d_print_renderer_dims(void) {
       d_logl("\n");
    }
 }
-
+*/
 // FILE
 const char* d_name_font(FontType type) {
    static const char* names[] = {

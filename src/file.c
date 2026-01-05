@@ -1,5 +1,5 @@
 #include "file.h"
-#include "renderer.h" // for palette
+// #include "renderer.h" // for palette
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>

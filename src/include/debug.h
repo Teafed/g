@@ -26,8 +26,8 @@ void    d__err(const char* func, const char* file, int line, const char* fmt, ..
 bool    d__dne(void* ptr, const char* name, const char* func, const char* file, int line);
 #define d_dne(ptr) d__dne((void*)(ptr), #ptr, __func__, __FILE__, __LINE__)
 
-#include "renderer.h"
-const char* d_name_rect(Rect* rect);
+// #include "renderer.h"
+// const char* d_name_rect(Rect* rect);
 
 static inline void d__var_int(int x, const char* name) {
    printf("%s = %d\n", name, x);
@@ -44,9 +44,9 @@ static inline void d__var_char(char x, const char* name) {
 static inline void d__var_str(const char* x, const char* name) {
    printf("%s = \"%s\"\n", name, x);
 }
-static inline void d__var_rect(Rect* x, const char* name) {
-   printf("%s = %s\n", name, d_name_rect(x));
-}
+// static inline void d__var_rect(Rect* x, const char* name) {
+   // printf("%s = %s\n", name, d_name_rect(x));
+// }
 static inline void d__var_ptr(void* x, const char* name) {
    printf("%s = %p\n", name, x);
 }
@@ -58,12 +58,14 @@ static inline void d__var_ptr(void* x, const char* name) {
    double: d__var_float, \
    char: d__var_char, \
    const char*: d__var_str, \
-   Rect*: d__var_rect, \
    default: d__var_ptr \
 )(x, #x)
 
+   // Rect*: d__var_rect,
+
 // TODO: make d_name() to name enums generally
 
+/*
 // RENDERER
 #include "renderer.h" // for DisplayResolution, WindowMode
 const char* d_name_display_resolution(DisplayResolution res);
@@ -71,6 +73,7 @@ const char* d_name_resize_mode(ResizeMode mode);
 const char* d_name_window_mode(WindowMode mode);
 const char* d_name_system_data(SystemData data);
 void d_print_renderer_dims(void);
+*/
 
 // FILE
 #include "file.h" // for FontType
