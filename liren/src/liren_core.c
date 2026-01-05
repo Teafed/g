@@ -392,6 +392,30 @@ void lr_draw_pixel(LiRen* r, LR_LayerHandle handle,
    r->backend->fill_rect(r, layer, &rect, color_index);
 }
 
+void lr_set_display_resolution(LiRen* r, LR_DisplayResolution res) {
+   r.display_res = res;
+}
+
+LR_DisplayResolution lr_get_display_resolution(LiRen* r) {
+   return r.display_res;
+}
+
+void lr_set_resize_mode(LiRen* r, LR_ResizeMode resize_mode) {
+   r.resize_mode = resize_mode;
+}
+
+LR_ResizeMode lr_get_resize_mode(LiRen* r) {
+   return r.resize_mode;
+}
+
+void lr_set_window_mode(LiRen* r, LR_WindowMode window_mode) {
+   r.window_mode = window_mode;
+}
+
+LR_WindowMode lr_get_window_mode(LiRen* r) {
+   return r.window_mode;
+}
+
 const LR_Framebuffer* lr_get_framebuffer(LiRen* r) {
     if (!r) return NULL;
     if (r->backend && r->backend->update_framebuffer_view) {
@@ -406,4 +430,3 @@ void lr_on_window_resized(LiRen* r, int window_w, int window_h) {
 
    r->backend->resize(r, window_w, window_h);
 }
-

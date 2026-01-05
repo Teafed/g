@@ -5,6 +5,7 @@
 
 #include "liren_backend_sdl.h"
 #include <stdlib.h>
+
 typedef struct {
    SDL_Window* window;
    SDL_Surface* window_surface;

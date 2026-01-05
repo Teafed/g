@@ -86,11 +86,19 @@ void lr_enable_system_overlay(LiRen* r);
 void lr_get_viewport_size(LiRen* r, int* width, int* height);
 bool lr_point_in_viewport(LiRen* r, int x, int y);
 
+// LiRen get/set
+LR_DisplayResolution lr_get_display_resolution(LiRen* r);
+void lr_set_display_resolution(LiRen* r, LR_DisplayResolution res);
+LR_ResizeMode lr_get_resize_mode(LiRen* r);
+void lr_set_resize_mode(LiRen* r, LR_ResizeMode resize_mode);
+LR_WindowMode lr_get_window_mode(LiRen* r);
+void lr_set_window_mode(LiRen* r, LR_WindowMode window_mode);
+
 // framebuffer - pointer is valid until lr_begin_frame or lr_destroy
 const LR_Framebuffer* lr_get_framebuffer(LiRen* r);
 
 // window events
-void lr_on_window_resized(LiRen* r, int w, int h)
+void lr_on_window_resized(LiRen* r, int w, int h);
 
 #ifdef __cplusplus
 }
