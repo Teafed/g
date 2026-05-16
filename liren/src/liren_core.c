@@ -455,3 +455,17 @@ void lr_on_window_resized(LiRen* r, int window_w, int window_h) {
 
    r->backend->resize(r, window_w, window_h);
 }
+
+const uint32_t* lr_get_palette(LiRen* r, int* out_size) {
+   if (!r) {
+      if (out_size) *out_size = 0;
+      return NULL;
+   }
+   if (out_size) *out_size = PALETTE_SIZE;
+   return r->palette;
+}
+
+uint8_t lr_get_transparent_index(LiRen* r) {
+   if (!r) return PALETTE_TRANSPARENT;
+   return r->transparent_color_index;
+}

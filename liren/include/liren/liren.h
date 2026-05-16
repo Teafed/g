@@ -139,6 +139,12 @@ void lr_set_window_mode(LiRen* r, LR_WindowMode window_mode);
 // framebuffer - pointer is valid until lr_begin_frame or lr_destroy
 const LR_Framebuffer* lr_get_framebuffer(LiRen* r);
 
+// palette access. returns a pointer to liren's palette array (size = *out_size).
+// each entry is 0xRRGGBBAA. lifetime is tied to LiRen*; do not modify or free.
+// returns NULL if r is NULL.
+const uint32_t* lr_get_palette(LiRen* r, int* out_size);
+uint8_t lr_get_transparent_index(LiRen* r);
+
 // window events
 void lr_on_window_resized(LiRen* r, int w, int h);
 
