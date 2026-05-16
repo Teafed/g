@@ -225,6 +225,58 @@ static void sdl_fill_rect(LiRen* r, Layer* layer,
    SDL_FillRect(surface, &sdl_rect, color_index);
 }
 
+// blit a sub-rect of src into the layer surface (both are 8-bit indexed).
+// transparent pixels are skipped; if tint != LIREN_TINT_NONE, non-transparent
+// pixels are replaced with tint at write time.
+static void sdl_blit_indexed(LiRen* r, Layer* layer,
+                             const ui8* src_pixels, int src_w, int src_h,
+                             int src_x, int src_y,
+                             int src_rect_w, int src_rect_h,
+                             int dst_x, int dst_y,
+                             ui8 tint_color_index, ui8 transparent_index) {
+   (void)r;
+   if (!layer || !layer->backend_layer || !src_pixels) return;
+   if (src_w <= 0 || src_h <= 0)                       return;
+   if (src_rect_w <= 0 || src_rect_h <= 0)             return;
+
+   SDL_Surface* surface = (SDL_Surface*)layer->backend_layer;
+   if (!surface->pixels) return;
+
+   // clip source rect against source bounds
+   if (src_x < 0) { src_rect_w += src_x; dst_x -= src_x; src_x = 0; }
+   if (src_y < 0) { src_rect_h += src_y; dst_y -= src_y; src_y = 0; }
+   if (src_x + src_rect_w > src_w) src_rect_w = src_w - src_x;
+   if (src_y + src_rect_h > src_h) src_rect_h = src_h - src_y;
+   if (src_rect_w <= 0 || src_rect_h <= 0) return;
+
+   // clip dest rect against layer bounds
+   int dst_w = surface->w;
+   int dst_h = surface->h;
+   if (dst_x < 0) { src_rect_w += dst_x; src_x -= dst_x; dst_x = 0; }
+   if (dst_y < 0) { src_rect_h += dst_y; src_y -= dst_y; dst_y = 0; }
+   if (dst_x + src_rect_w > dst_w) src_rect_w = dst_w - dst_x;
+   if (dst_y + src_rect_h > dst_h) src_rect_h = dst_h - dst_y;
+   if (src_rect_w <= 0 || src_rect_h <= 0) return;
+
+   SDL_LockSurface(surface);
+
+   ui8* dst_base = (ui8*)surface->pixels;
+   int dst_pitch = surface->pitch;
+   bool tinted = (tint_color_index != LIREN_TINT_NONE);
+
+   for (int row = 0; row < src_rect_h; ++row) {
+      const ui8* sp = src_pixels + (src_y + row) * src_w + src_x;
+      ui8* dp = dst_base + (dst_y + row) * dst_pitch + dst_x;
+      for (int col = 0; col < src_rect_w; ++col) {
+         ui8 v = sp[col];
+         if (v == transparent_index) continue;
+         dp[col] = tinted ? tint_color_index : v;
+      }
+   }
+
+   SDL_UnlockSurface(surface);
+}
+
 static void sdl_present(LiRen* r) {
    if (!r) return;
 
@@ -272,5 +324,6 @@ const BackendOps LIREN_BACKEND_SDL = {
    .destroy_layer = sdl_destroy_layer,
    .clear_layer = sdl_clear_layer,
    .fill_rect = sdl_fill_rect,
+   .blit_indexed = sdl_blit_indexed,
    .update_framebuffer_view = sdl_update_framebuffer_view
 };

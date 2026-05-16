@@ -10,7 +10,11 @@ extern "C" {
 
 typedef struct LiRen LiRen;
 typedef uint32_t LR_LayerHandle;
-#define LR_INVALID_LAYER 0
+typedef uint32_t LR_FontHandle;
+typedef uint32_t LR_SpriteHandle;
+#define LR_INVALID_LAYER  0
+#define LR_INVALID_FONT   0
+#define LR_INVALID_SPRITE 0
 
 typedef struct {
    int x, y, w, h;
@@ -80,6 +84,44 @@ void lr_draw_fill(LiRen* r, LR_LayerHandle layer,
                   uint8_t color_index);
 void lr_draw_pixel(LiRen* r, LR_LayerHandle layer,
                    int x, int y, uint8_t color_index);
+
+// fonts (bitmap, monochrome, fixed-grid)
+//
+// pixels are palette indices, row-major, top-left origin.
+// any pixel equal to the renderer's transparent index is treated as transparent.
+// the buffer is copied internally; the caller may free it after create.
+typedef struct {
+   int width, height;            // sheet dimensions in pixels
+   int glyph_w, glyph_h;         // size of one glyph
+   int ascii_start;              // ascii code of first glyph (e.g. 32 for space)
+   int glyph_count;              // total glyphs in the sheet
+   const uint8_t* pixels;        // sheet pixels (palette indices)
+} LR_BitmapFontDesc;
+
+LR_FontHandle lr_font_create_from_pixels(LiRen* r, const LR_BitmapFontDesc* desc);
+void lr_font_destroy(LiRen* r, LR_FontHandle font);
+
+// draws text with all non-transparent glyph pixels replaced by color_index.
+void lr_draw_text(LiRen* r, LR_LayerHandle layer, LR_FontHandle font,
+                  int x, int y, uint8_t color_index, const char* text);
+
+// sprites (single-frame or animated, fixed-frame sheet)
+//
+// frames are arranged in row-major order in the sheet. frame_count = 1
+// means a static sprite. caller computes frame_index per draw.
+typedef struct {
+   int width, height;            // sheet dimensions in pixels
+   int frame_w, frame_h;         // size of one frame
+   int frame_count;              // 1 for static; >1 for animations
+   const uint8_t* pixels;        // sheet pixels (palette indices)
+} LR_SpriteDesc;
+
+LR_SpriteHandle lr_sprite_create_from_pixels(LiRen* r, const LR_SpriteDesc* desc);
+void lr_sprite_destroy(LiRen* r, LR_SpriteHandle sprite);
+
+// draws the given frame of the sprite. frame_index is clamped to [0, frame_count).
+void lr_draw_sprite(LiRen* r, LR_LayerHandle layer, LR_SpriteHandle sprite,
+                    int x, int y, int frame_index);
 
 // utility
 void lr_enable_system_overlay(LiRen* r);

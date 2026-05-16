@@ -107,7 +107,7 @@ static void set_logical_size(LiRen* r) {
    }
 }
 
-static void apply_config_defaults(LR_Config* out_cfg, const LR_Config* in_cfg) {
+static void liren_apply_config_defaults(LR_Config* out_cfg, const LR_Config* in_cfg) {
    LR_Config cfg = {
       .scale_factor = 2.0f,
       .resolution = LR_RES_VGA,
@@ -148,7 +148,7 @@ LiRen* lr_create(const LR_Config* user_cfg) {
    set_logical_size(r);
 
    // palette
-   init_palette(r);
+   liren_init_palette(r);
    r->clear_color_index = 4; // mono-black
    r->transparent_color_index = PALETTE_TRANSPARENT;
 
@@ -161,6 +161,17 @@ LiRen* lr_create(const LR_Config* user_cfg) {
    }
    r->layer_count = 0;
    r->next_layer_handle = 1;
+
+   // fonts / sprites (allocated lazily; capacity starts at 0)
+   r->fonts = NULL;
+   r->font_count = 0;
+   r->font_capacity = 0;
+   r->next_font_handle = 1;
+
+   r->sprites = NULL;
+   r->sprite_count = 0;
+   r->sprite_capacity = 0;
+   r->next_sprite_handle = 1;
 
    // system overlay layer
    r->system_layer_handle = 0;
@@ -185,13 +196,6 @@ LiRen* lr_create(const LR_Config* user_cfg) {
         return NULL;
     }
 
-    // TEMP!
-   if (file_load_sheets(&r->font_array, &r->sprite_array) == 0) {
-      liren_log(r, "liren: failed to load sheets");
-      lr_destroy(r);
-      return NULL;
-   }
-
    r->initialized = true;
    return r;
 }
@@ -199,8 +203,8 @@ LiRen* lr_create(const LR_Config* user_cfg) {
 void lr_destroy(LiRen* r) {
    if (!r) return;
 
-   // TEMP!
-   file_unload_sheets(&r->font_array, &r->sprite_array);
+   // free assets (font/sprite pixel buffers)
+   liren_destroy_all_assets(r);
 
    // backend cleans up platform resources
    if (r->backend && r->backend->shutdown) {
@@ -288,7 +292,7 @@ LR_LayerHandle lr_layer_create(LiRen* r, bool can_draw_outside) {
    return layer->handle;
 }
 
-void lr_layer_destroy(LiRen* r, LR_LayerHandle layer) {
+void lr_layer_destroy(LiRen* r, LR_LayerHandle handle) {
    if (!r || !r->initialized || handle == 0) return;
 
    // find index
@@ -393,35 +397,56 @@ void lr_draw_pixel(LiRen* r, LR_LayerHandle handle,
 }
 
 void lr_set_display_resolution(LiRen* r, LR_DisplayResolution res) {
-   r.display_res = res;
+   if (!r) return;
+   r->display_res = res;
 }
 
 LR_DisplayResolution lr_get_display_resolution(LiRen* r) {
-   return r.display_res;
+   if (!r) return LR_RES_VGA;
+   return r->display_res;
 }
 
 void lr_set_resize_mode(LiRen* r, LR_ResizeMode resize_mode) {
-   r.resize_mode = resize_mode;
+   if (!r) return;
+   r->resize_mode = resize_mode;
 }
 
 LR_ResizeMode lr_get_resize_mode(LiRen* r) {
-   return r.resize_mode;
+   if (!r) return LR_RESIZE_FIT;
+   return r->resize_mode;
 }
 
 void lr_set_window_mode(LiRen* r, LR_WindowMode window_mode) {
-   r.window_mode = window_mode;
+   if (!r) return;
+   r->window_mode = window_mode;
 }
 
 LR_WindowMode lr_get_window_mode(LiRen* r) {
-   return r.window_mode;
+   if (!r) return LR_WINDOW_WINDOWED;
+   return r->window_mode;
 }
 
-const LR_Framebuffer* lr_get_framebuffer(LiRen* r) {
-    if (!r) return NULL;
-    if (r->backend && r->backend->update_framebuffer_view) {
-        r->backend->update_framebuffer_view(r, &r->framebuffer);
-    }
-    return &r->framebuffer;
+void lr_get_viewport_size(LiRen* r, int* width, int* height) {
+   if (!r || !r->initialized) {
+      if (width)  *width  = 0;
+      if (height) *height = 0;
+      return;
+   }
+   if (width)  *width  = r->logical_width;
+   if (height) *height = r->logical_height;
+}
+
+bool lr_point_in_viewport(LiRen* r, int x, int y) {
+   if (!r || !r->initialized) return false;
+   return x >= 0 && y >= 0
+       && x < r->logical_width
+       && y < r->logical_height;
+}
+
+void lr_enable_system_overlay(LiRen* r) {
+   // TODO: implement system overlay (fps, layer count, etc).
+   // stubbed so the public API symbol exists.
+   (void)r;
 }
 
 void lr_on_window_resized(LiRen* r, int window_w, int window_h) {
