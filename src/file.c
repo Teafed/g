@@ -1,141 +1,35 @@
+/* file.c
+ * minimal bitmap loader. produces RGBA pixel buffers from 24-bit BMPs.
+ */
+
 #include "file.h"
-// #include "renderer.h" // for palette
 #include "debug.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-   #include <windows.h>
-#else
-   #include <dirent.h>
-   #include <sys/stat.h>
-#endif
-
-static ImageData* load_bitmap(const char* fname);
-static int parse_sheet_filename(const char* fname, char* type, char* name, int* tile_w, int* tile_h);
-static int has_extension(const char* fname, const char* ext);
-static int process_sheet(const char* fname, FontArray* fonts, SpriteArray* sprites);
-static void cleanup_sheets(FontArray* fonts, SpriteArray* sprites);
-static void align_color(ui32* color);
-static void verify_image_colors(ImageData* image_data);
-
-// TODO: switch font/sprite order
-int file_load_sheets(FontArray* fonts, SpriteArray* sprites) {
-   if (!fonts || !sprites) {
-      d_err("fonts or sprites do not exist");
-      return 0;
-   }   
-
-   // initialize arrays
-   // TODO: decide on and define constants for capacity
-   fonts->fonts = malloc(sizeof(Font) * 8);
-   fonts->font_count = 0;
-   fonts->font_capacity = 8;
-   if (d_dne(fonts->fonts)) {
-      return 0;
-   }
-   
-   sprites->sprites = malloc(sizeof(Sprite) * 16);
-   sprites->sprite_count = 0;
-   sprites->sprite_capacity = 16;
-   if (d_dne(sprites->sprites)) {
-      free(fonts->fonts);
-      fonts->fonts = NULL;
-      return 0;
-   }
-   
-#ifdef _WIN32
-   WIN32_FIND_DATA find_data;
-   HANDLE find_handle;
-   char search_path[256];
-   snprintf(search_path, sizeof(search_path), "%s*.bmp", DIR_SHEETS);
-   
-   find_handle = FindFirstFile(search_path, &find_data);
-   if (find_handle == INVALID_HANDLE_VALUE) {
-      d_err("no bitmap files found in %s", DIR_SHEETS);
-      cleanup_sheets(fonts, sprites);
-      return 0;
-   }
-   
-   do {
-      if (has_extension(find_data.cFileName, ".bmp")) {
-         process_sheet(find_data.cFileName, fonts, sprites);
-      }
-   } while (FindNextFile(find_handle, &find_data));
-   FindClose(find_handle);
-   
-#else
-   DIR* dir = opendir(DIR_SHEETS);
-   if (d_dne(dir)) {
-      d_log("could not open directory: %s", DIR_SHEETS);
-      cleanup_sheets(fonts, sprites);
-      return 0;
-   }
-   
-   struct dirent* entry;
-   while ((entry = readdir(dir)) != NULL) {
-      if (has_extension(entry->d_name, ".bmp")) {
-         process_sheet(entry->d_name, fonts, sprites);
-      }
-   }
-   closedir(dir);
-#endif
-   
-   d_logv(2, "loaded %d fonts and %d sprites from %s", 
-          fonts->font_count, sprites->sprite_count, DIR_SHEETS);
-   return 1;
-}
-
-void file_unload_sheets(FontArray* fonts, SpriteArray* sprites) {
-   int font_count = fonts->font_count;
-   int sprite_count = sprites->sprite_count;
-   cleanup_sheets(fonts, sprites);
-   d_logv(2, "unloaded %d fonts and %d sprites", font_count, sprite_count);
-}
-
-Font* file_get_font(FontArray* font_array, FontType type) { // TODO: redo this
-   const char* fname = d_name_font(type);
-   if (!fname) return NULL;
-   for (int i = 0; i < font_array->font_count; i++) {
-      if (strcmp(font_array->fonts[i].fname, fname) == 0) {
-         return &font_array->fonts[i];
-      }
-   }
-   return NULL;
-}
-
-Sprite* file_get_sprite(SpriteArray* sprite_array, const char* sprite_name) {
-   // TODO: finish this pls
-   (void)sprite_array;
-   (void)sprite_name;
-   return NULL;
-}
-
-// INTERNAL
-static ImageData* load_bitmap(const char* fname) {
-   /* bitmap is assumed to be in its simplest structure */
-   /* e.g. header, DIB header, pixel array. DIB assumed */
-   /* to be windows bitmap.                             */
-   FILE* image_file = NULL;
-   image_file = fopen(fname, "rb");
-   if (!image_file) {
-      d_err("coudln't open image file: %s", fname);
+ImageData* image_load_bmp(const char* path) {
+   FILE* f = fopen(path, "rb");
+   if (!f) {
+      d_err("couldn't open image file: %s", path);
       return NULL;
    }
 
-   uint8_t file_header[16];
-   if (fread(&file_header, 1, 14, image_file) != 14) {
-      d_err("couldn't read file header: %s", fname);
-      fclose(image_file);
+   // bmp file header is 14 bytes; we only need to verify the "BM" signature.
+   uint8_t file_header[14];
+   if (fread(file_header, 1, 14, f) != 14) {
+      d_err("couldn't read file header: %s", path);
+      fclose(f);
       return NULL;
    }
-   
    if (((uint16_t*)file_header)[0] != 0x4D42) {
-      d_err("file is not a valid bitmap: %s", fname);
-      fclose(image_file);
+      d_err("file is not a valid bitmap: %s", path);
+      fclose(f);
       return NULL;
    }
 
+   // DIB header (40 bytes for BITMAPINFOHEADER; the format we expect).
    struct {
       uint32_t header_size;
       int32_t width;
@@ -148,218 +42,85 @@ static ImageData* load_bitmap(const char* fname) {
       int32_t height_per_meter;
       uint32_t color_count;
       uint32_t important_colors;
-   } dib_header; // dib = device-independent format
-   
-   if (fread(&dib_header, 1, sizeof(dib_header), image_file) != sizeof(dib_header)) {
-      d_err("couldn't read dib header: %s", fname);
-      fclose(image_file);
+   } dib;
+
+   if (fread(&dib, 1, sizeof(dib), f) != sizeof(dib)) {
+      d_err("couldn't read dib header: %s", path);
+      fclose(f);
       return NULL;
    }
-   
-   ImageData *image_data;
-   uint32_t data_size = dib_header.width * dib_header.height * 4;
-   image_data = malloc(sizeof(ImageData) + data_size);
-   if (!image_data) {
-      d_err("couldn't malloc ImageData: %s", fname);
-      fclose(image_file);
+
+   if (dib.width <= 0 || dib.height <= 0) {
+      // TODO: negative height means top-down rows; not handled here yet.
+      d_err("unsupported bmp dimensions (%d x %d): %s",
+            dib.width, dib.height, path);
+      fclose(f);
       return NULL;
    }
-   image_data->size = data_size;
-   image_data->width = dib_header.width;
-   image_data->height = dib_header.height;
-   
-   // uint32_t bmp_pitch = dib_header.width * 3;
-   uint32_t bmp_pitch = ((dib_header.width * 3 + 3) / 4) * 4; // for some reason this fixes 9x8 tiles
-   uint32_t img_data_pitch = dib_header.width * 4;
-   uint8_t pixel_buffer[bmp_pitch];
-   uint8_t* pixel_data = image_data->data;
-   
-   for (uint32_t i = dib_header.height; i > 0; i--) {
-      if (fread(&pixel_buffer, 1, bmp_pitch, image_file) != bmp_pitch) {
-         d_err("couldn't read pixel data at row %u", i);
-         free(image_data);
-         fclose(image_file);
+   if (dib.bitdepth != 24) {
+      d_err("only 24-bit BMPs are supported (got %u): %s", dib.bitdepth, path);
+      fclose(f);
+      return NULL;
+   }
+
+   ImageData* img = malloc(sizeof(*img));
+   if (!img) {
+      d_err("out of memory allocating ImageData: %s", path);
+      fclose(f);
+      return NULL;
+   }
+   img->width  = dib.width;
+   img->height = dib.height;
+   img->pixels = malloc((size_t)dib.width * (size_t)dib.height * 4);
+   if (!img->pixels) {
+      d_err("out of memory allocating image pixels: %s", path);
+      free(img);
+      fclose(f);
+      return NULL;
+   }
+
+   // each BMP row is padded to a 4-byte boundary.
+   uint32_t bmp_pitch  = (((uint32_t)dib.width * 3 + 3) / 4) * 4;
+   uint32_t dst_pitch  = (uint32_t)dib.width * 4;
+   uint8_t* row_buffer = malloc(bmp_pitch);
+   if (!row_buffer) {
+      d_err("out of memory allocating row buffer: %s", path);
+      free(img->pixels);
+      free(img);
+      fclose(f);
+      return NULL;
+   }
+
+   // BMP stores rows bottom-up; we want top-down. read bottom-to-top
+   // and write to the corresponding row in the output.
+   for (int32_t i = dib.height; i > 0; --i) {
+      if (fread(row_buffer, 1, bmp_pitch, f) != bmp_pitch) {
+         d_err("couldn't read pixel data at row %d: %s", i, path);
+         free(row_buffer);
+         free(img->pixels);
+         free(img);
+         fclose(f);
          return NULL;
       }
-         
-      uint8_t* row_start = pixel_data + (i - 1) * img_data_pitch;
-      // TODO: ensure dib_header.width is positive
-      //       apparently negative w/h values mean the pixel data is stored bottom-up?
-      for (uint32_t j = 0; j < (uint32_t)dib_header.width; j++) {
-         uint32_t buffer_offset = j * 3;
-         uint32_t data_offset = j * 4;
-         
-         row_start[data_offset + 0] = pixel_buffer[buffer_offset + 2];  // R
-         row_start[data_offset + 1] = pixel_buffer[buffer_offset + 1];  // G
-         row_start[data_offset + 2] = pixel_buffer[buffer_offset + 0];  // B
-         row_start[data_offset + 3] = 255;                              // A
+
+      uint8_t* dst = img->pixels + (i - 1) * dst_pitch;
+      // bmp pixel order is BGR; convert to RGBA.
+      for (int32_t x = 0; x < dib.width; ++x) {
+         uint8_t* src = row_buffer + x * 3;
+         dst[x * 4 + 0] = src[2];   // R
+         dst[x * 4 + 1] = src[1];   // G
+         dst[x * 4 + 2] = src[0];   // B
+         dst[x * 4 + 3] = 255;      // A
       }
    }
 
-   fclose(image_file);
-   return image_data;
+   free(row_buffer);
+   fclose(f);
+   return img;
 }
 
-static int parse_sheet_filename(const char* fname, char* type, char* name, int* tile_w, int* tile_h) {
-   // format: [type]_[name]_[w]x[h].bmp
-   char* fname_copy = malloc(strlen(fname) + 1);
-   strcpy(fname_copy, fname);
-   
-   char* token = strtok(fname_copy, "_");
-   if (!token) { free(fname_copy); return 0; }
-   strcpy(type, token);
-   
-   token = strtok(NULL, "_");
-   if (!token) { free(fname_copy); return 0; }
-   strcpy(name, token);
-   
-   token = strtok(NULL, ".");
-   if (!token) { free(fname_copy); return 0; }
-   
-   if (sscanf(token, "%dx%d", tile_w, tile_h) != 2) {
-      free(fname_copy);
-      return 0;
-   }
-   
-   free(fname_copy);
-   return 1;
-}
-
-static int has_extension(const char* fname, const char* ext) {
-   // TODO: replace const 4
-   size_t len = strlen(fname);
-   if (len < 4) return 0;
-#ifdef _WIN32
-   return _stricmp(fname + len - 4, ext) == 0; // case-insensitive compare
-#else
-   return strcasecmp(fname + len - 4, ext) == 0;
-#endif
-}
-
-static int process_sheet(const char* fname, FontArray* fonts, SpriteArray* sprites) {
-   char full_path[512];
-   snprintf(full_path, sizeof(full_path), "%s%s", DIR_SHEETS, fname);
-
-   // parse filename
-   char type[64], name[128];
-   int tile_w, tile_h;
-   if (!parse_sheet_filename(fname, type, name, &tile_w, &tile_h)) {
-      d_log("couldn't parse filename: %s", fname);
-      return 0;
-   }
-
-   ImageData* image_data = load_bitmap(full_path);
-   if (d_dne(image_data)) {
-      d_log("failed to load bitmap: %s", fname);
-      return 0;
-   }
-
-   int image_w = image_data->width / tile_w;
-   int image_h = image_data->height / tile_h;
-
-   if (image_data->width % tile_w != 0 || image_data->height % tile_h != 0) {
-      d_log("WARNING: %s has partial tiles - truncating to %dx%d tiles",
-            fname, image_w, image_h);
-      d_logl("      (not implemented yet)\n");
-   }
-
-   verify_image_colors(image_data);
-
-   if (strcmp(type, "font") == 0) {
-      // expand font array if needed
-      if (fonts->font_count >= fonts->font_capacity) {
-         fonts->font_capacity *= 2;
-         Font* new_fonts = realloc(fonts->fonts, sizeof(Font) * fonts->font_capacity);
-         if (d_dne(new_fonts)) {
-            d_err("couldn't resize font array");
-            free(image_data);
-            return 0;
-         }
-         fonts->fonts = new_fonts;
-      }
-
-      Font* font = &fonts->fonts[fonts->font_count++];
-      font->fname = malloc(strlen(fname) + 1);
-      if (d_dne(font->fname)) {
-         d_err("couldn't allocate font filename");
-         free(image_data);
-         return 0;
-      }
-      strcpy((char*)font->fname, fname);
-      font->tile_w = tile_w;
-      font->tile_h = tile_h;
-      font->image_w = image_w;
-      font->image_h = image_h;
-      font->data = image_data;
-      font->ascii_start = 33;
-   } else if (strcmp(type, "sprite") == 0) {
-      if (sprites->sprite_count >= sprites->sprite_capacity) {
-         sprites->sprite_capacity *= 2;
-         Sprite* new_sprites = realloc(sprites->sprites, sizeof(Sprite) * sprites->sprite_capacity);
-         if (d_dne(new_sprites)) {
-            d_err("couldn't resize sprite array");
-            free(image_data);
-            return 0;
-         }
-         sprites->sprites = new_sprites;
-      }
-
-      Sprite* sprite = &sprites->sprites[sprites->sprite_count++];
-      sprite->fname = malloc(strlen(fname) + 1);
-      if (d_dne(sprite->fname)) {
-         d_err("couldn't allocate sprite filename");
-         free(image_data);
-         return 0;
-      }
-      strcpy((char*)sprite->fname, fname);
-      sprite->tile_w = tile_w;
-      sprite->tile_h = tile_h;
-      sprite->image_w = image_w;
-      sprite->image_h = image_h;
-      sprite->data = image_data;
-      strcpy(sprite->name, name);
-   } else {
-      d_log("unknown resource type '%s' in file %s", type, fname);
-      free(image_data);
-   }
-   return 1;
-}
-
-static void cleanup_sheets(FontArray* fonts, SpriteArray* sprites) {
-   if (fonts && fonts->fonts) {
-      for (int i = 0; i < fonts->font_count; i++) {
-         free((char*)fonts->fonts[i].fname);
-         free(fonts->fonts[i].data);
-      }
-      free(fonts->fonts);
-      fonts->fonts = NULL;
-      fonts->font_count = 0;
-      fonts->font_capacity = 0;
-   }
-   
-   if (sprites && sprites->sprites) {
-      for (int i = 0; i < sprites->sprite_count; i++) {
-         free((char*)sprites->sprites[i].fname);
-         free(sprites->sprites[i].data);
-      }
-      free(sprites->sprites);
-      sprites->sprites = NULL;
-      sprites->sprite_count = 0;
-      sprites->sprite_capacity = 0;
-   }
-}
-
-static void align_color(ui32* color) {
-   (void)color;
-   // if color is not in palette, change to nearest color
-}
-
-static void verify_image_colors(ImageData* image_data) {
-   // TODO: finish this pls
-   (void)image_data;
-   ui32 color = 0; // temp
-   align_color(&color);
-   // load ImageData, make sure all colors match palette
-   // if not, warn and change colors to closest matching in image_data
-   // later we can call modify_image_colors() to change the actual file
+void image_free(ImageData* image) {
+   if (!image) return;
+   free(image->pixels);
+   free(image);
 }

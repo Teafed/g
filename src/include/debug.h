@@ -61,23 +61,7 @@ static inline void d__var_ptr(void* x, const char* name) {
    default: d__var_ptr \
 )(x, #x)
 
-   // Rect*: d__var_rect,
-
 // TODO: make d_name() to name enums generally
-
-/*
-// RENDERER
-#include "renderer.h" // for DisplayResolution, WindowMode
-const char* d_name_display_resolution(DisplayResolution res);
-const char* d_name_resize_mode(ResizeMode mode);
-const char* d_name_window_mode(WindowMode mode);
-const char* d_name_system_data(SystemData data);
-void d_print_renderer_dims(void);
-*/
-
-// FILE
-#include "file.h" // for FontType
-const char* d_name_font(FontType type);
 
 // TIMING
 void d_timing_print_state(void);

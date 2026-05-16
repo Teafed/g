@@ -2,6 +2,7 @@
 #include "input.h"
 #include "scene.h"
 #include "debug.h"
+#include "game_assets.h"
 
 #include <liren/liren.h>
 #include <SDL2/SDL.h>
@@ -18,7 +19,10 @@ typedef struct {
 } Game;
 
 Game g_game = { 0 };
-static LiRen* g_liren = NULL;
+static LiRen* g_liren  = NULL;
+static GameAssets* g_assets = NULL;
+
+GameAssets* game_get_assets(void) { return g_assets; } // temp until scene.c rewrite
 
 bool game_init(float scale_factor, int framerate);
 void game_update(float delta_time);
@@ -88,6 +92,15 @@ bool game_init(float scale_factor, int framerate) {
       return false;
    }
    lr_set_clear_color(g_liren, 4);
+
+   // temp
+   g_assets = game_assets_load(g_liren, "assets/sheets/");
+   if (!g_assets) {
+      d_err("failed to load game assets");
+      lr_destroy(g_liren);
+      g_liren = NULL;
+      return false;
+   }
    
    input_init();
    scene_init(g_liren);
@@ -153,6 +166,10 @@ void game_shutdown(void) {
    
    scene_destroy();
    input_shutdown();
+   if (g_assets) {
+      game_assets_destroy(g_assets);
+      g_assets = NULL;
+   }
    if (g_liren) {
       lr_destroy(g_liren);
       g_liren = NULL;
