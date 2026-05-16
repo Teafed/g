@@ -1,45 +1,51 @@
+# directories
 SRC_DIR = src
 LIREN_DIR = liren/src
 OBJ_DIR = obj
 BIN_DIR = bin
 
-# main sources
-SRCS = $(shell find $(SRC_DIR) -name '*.c')
+SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*/*.c)
+LIREN_SRCS = $(wildcard $(LIREN_DIR)/*.c) $(wildcard $(LIREN_DIR)/*/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
+LIREN_OBJS = $(patsubst $(LIREN_DIR)/%.c, $(OBJ_DIR)/liren/%.o, $(LIREN_SRCS))
 
-# liren sources
-LIREN_SRCS = $(shell find $(LIREN_DIR) -name '*.c')
-LIREN_OBJS = $(patsubst $(LIREN_DIR)/%.c, $(OBJ_DIR)/LIREN/%.o, $(LIREN_SRCS))
+# header dependency files
+DEPS = $(OBJS:.o=.d) $(LIREN_OBJS:.o=.d)
+
 LIREN_LIB = $(BIN_DIR)/libliren.a
+TARGET    = $(BIN_DIR)/game
 
-# compiler flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g -std=c99 \
-	-I./$(SRC_DIR)/include \
-	-I./liren/include
-LDFLAGS = -lSDL2 -ldl
 
-TARGET = $(BIN_DIR)/game
+CFLAGS = -g -std=c99 -Wall -Wextra -MMD -MP \
+         -I./$(SRC_DIR)/include \
+         -I./liren/include \
+         -I./$(LIREN_DIR)
 
-.PHONY: all clean run directories
+LDFLAGS = -lSDL2
 
-all: directories $(TARGET)
+.PHONY: all clean run debug release show-files
 
-directories:
-	mkdir -p $(OBJ_DIR) $(BIN_DIR)
+all: $(TARGET)
 
+# compile engine sources
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# compile liren sources
 $(OBJ_DIR)/liren/%.o: $(LIREN_DIR)/%.c
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# liren static library
 $(LIREN_LIB): $(LIREN_OBJS)
+	@mkdir -p $(dir $@)
 	ar rcs $@ $^
 
+# final binary
 $(TARGET): $(OBJS) $(LIREN_LIB)
+	@mkdir -p $(dir $@)
 	$(CC) $(OBJS) $(LIREN_LIB) -o $@ $(LDFLAGS)
 
 clean:
@@ -55,11 +61,10 @@ release: CFLAGS += -O2 -DNDEBUG
 release: clean all
 
 show-files:
-	@echo "Source files:"
-	@echo $(SRCS)
-	@echo "Liren source files:"
-	@echo $(LIREN_SRCS)
-	@echo "Object files:"
-	@echo $(OBJS)
-	@echo "Liren object files:"
-	@echo $(LIREN_OBJS)
+	@echo "Engine sources:"; echo "  $(SRCS)"
+	@echo "Liren sources:";  echo "  $(LIREN_SRCS)"
+	@echo "Engine objects:"; echo "  $(OBJS)"
+	@echo "Liren objects:";  echo "  $(LIREN_OBJS)"
+
+# pull in auto-generated header dependencies
+-include $(DEPS)
