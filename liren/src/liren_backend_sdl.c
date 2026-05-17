@@ -17,8 +17,9 @@ typedef struct {
    bool resize_in_progress;
    ui32 resize_start_time;
 
-   // palette in composite format for clears
-   ui32 palette_mapped[PALETTE_SIZE];
+   // palette in composite format for clears. sized to max possible (256 for
+   // 8-bit indices); only the first r->palette_size entries are populated.
+   ui32 palette_mapped[256];
 } SDLBackendData;
 
 static SDLBackendData* get_sdl(LiRen* r) {
@@ -46,7 +47,7 @@ static void map_palette_to_composite(LiRen* r, SDLBackendData* b) {
    if (!r || !b || !b->composite_surface) return;
 
    SDL_PixelFormat* fmt = b->composite_surface->format;
-   for (int i = 0; i < PALETTE_SIZE; ++i) {
+   for (int i = 0; i < r->palette_size; ++i) {
       ui32 c = r->palette[i];
       Uint8 r8 = (c >> 24) & 0xFF;
       Uint8 g8 = (c >> 16) & 0xFF;
@@ -69,8 +70,8 @@ static SDL_Surface* create_layer_surface(LiRen* r, bool can_draw_outside) {
       return NULL;
    }
 
-   SDL_Color colors[PALETTE_SIZE];
-   for (int i = 0; i < PALETTE_SIZE; ++i) {
+   SDL_Color colors[256];
+   for (int i = 0; i < r->palette_size; ++i) {
       ui32 c = r->palette[i];
       colors[i].r = (c >> 24) & 0xFF;
       colors[i].g = (c >> 16) & 0xFF;
@@ -78,7 +79,7 @@ static SDL_Surface* create_layer_surface(LiRen* r, bool can_draw_outside) {
       colors[i].a = 255;
    }
 
-   SDL_SetPaletteColors(surface->format->palette, colors, 0, PALETTE_SIZE);
+   SDL_SetPaletteColors(surface->format->palette, colors, 0, r->palette_size);
    SDL_SetColorKey(surface, SDL_TRUE, r->transparent_color_index);
    SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND);
    SDL_SetSurfaceAlphaMod(surface, 255);

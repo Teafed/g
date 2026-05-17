@@ -108,7 +108,7 @@ void lr_font_destroy(LiRen* r, LR_FontHandle handle) {
 void lr_draw_text(LiRen* r, LR_LayerHandle layer_handle, LR_FontHandle font_handle,
                   int x, int y, uint8_t color_index, const char* text) {
    if (!r || !r->initialized || !text) return;
-   if (color_index >= PALETTE_SIZE)    return;
+   if (color_index >= r->palette_size) return;
    if (!r->backend || !r->backend->blit_indexed) return;
 
    Layer* layer = liren_find_layer(r, layer_handle);

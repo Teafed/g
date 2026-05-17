@@ -6,53 +6,55 @@
 #include "liren_internal.h"
 #include "liren_backend_sdl.h"
 
-// palette
-// TODO: add support for other palettes
-static const ui32 PALETTE_V5[PALETTE_SIZE] = {
-   // teaf-v5
-   0xFEFEFDFF,  // 0  - mono-white
-   0xAAAAAAFF,  // 1  - mono-lgrey
-   0x777777FF,  // 2  - mono-grey
-   0x494949FF,  // 3  - mono-dgrey
-   0x1E1E1EFF,  // 4  - mono-black
-   0xE8BE96FF,  // 5  - orange-cream
-   0xEAAA6DFF,  // 6  - orange-teaf
-   0xF08629FF,  // 7  - orange-normal
-   0x9B5A3CFF,  // 8  - brown-light
-   0x5B3523FF,  // 9  - brown-dark
-   0xE8896DFF,  // 10 - red-piggy
-   0xAD2E35FF,  // 11 - red-ivwy
-   0x7E2023FF,  // 12 - red-normal
-   0x4C1313FF,  // 13 - red-dark
-   0xB3DBD8FF,  // 14 - teal-cream
-   0x57DCD7FF,  // 15 - teal-frankie
-   0x27917FFF,  // 16 - teal-ocean
-   0x022D25FF,  // 17 - teal-dark
-   0xA2CAD8FF,  // 18 - blue-light
-   0x6494B0FF,  // 19 - blue-sky
-   0x5D5D6BFF,  // 20 - blue-concrete
-   0xF5ABB9FF,  // 21 - pink-cream
-   0xD69699FF,  // 22 - pink-craige
-   0xF46BA9FF,  // 23 - pink-deep
-   0xCDACE0FF,  // 24 - purple-cream
-   0x9B5AC3FF,  // 25 - purple-katja
-   0x7041A3FF,  // 26 - purple-normal
-   0x442882FF,  // 27 - purple-dark
-   0xA6B18EFF,  // 28 - green-cloudy
-   0x4E631EFF,  // 29 - green-jacket
-   0x394816FF,  // 30 - green-dirty
-   0x242D0EFF,  // 31 - green-dark
-   0xF0FD93FF,  // 32 - yellow-light
-   0xD9E074FF,  // 33 - yellow-moon
-   0xC7E336FF,  // 34 - yellow-neon
-   0xFFFFFFFF,  // transparent
+// default palette (teaf-v5).
+// 42 entries; last entry (true-white, 0xFFFFFFFF) is the default transparent
+// sentinel. engines may supply their own palette via LR_Config.
+const uint32_t LR_DEFAULT_PALETTE[] = {
+   0xFEFEFDFF,  //  0 - mono-white
+   0xAAAAAAFF,  //  1 - mono-lgrey
+   0x777777FF,  //  2 - mono-grey
+   0x494949FF,  //  3 - mono-dgrey
+   0x1E1E1EFF,  //  4 - mono-dark
+   0x161616FF,  //  5 - mono-black
+   0xE8BE96FF,  //  6 - orange-cream
+   0xEAAA6DFF,  //  7 - orange-teaf
+   0xF08629FF,  //  8 - orange-normal
+   0x9B5A3CFF,  //  9 - brown-light
+   0x5B3523FF,  // 10 - brown-dark
+   0xE8896DFF,  // 11 - red-piggy
+   0xAD2E35FF,  // 12 - red-ivwy
+   0x7E2023FF,  // 13 - red-normal
+   0x4C1313FF,  // 14 - red-dark
+   0x280A0AFF,  // 15 - red-black
+   0xB3DBD8FF,  // 16 - teal-cream
+   0x57DCD7FF,  // 17 - teal-frankie
+   0x27917FFF,  // 18 - teal-ocean
+   0x022D25FF,  // 19 - teal-dark
+   0xA2CAD8FF,  // 20 - blue-light
+   0x6494B0FF,  // 21 - blue-sky
+   0x5D5D6BFF,  // 22 - blue-concrete
+   0xF5ABB9FF,  // 23 - pink-cream
+   0xD69699FF,  // 24 - pink-craige
+   0xF46BA9FF,  // 25 - pink-deep
+   0x68466BFF,  // 26 - magenta-normal
+   0x453247FF,  // 27 - magenta-dark
+   0xCDACE0FF,  // 28 - purple-cream
+   0x9B5AC3FF,  // 29 - purple-katja
+   0x7041A3FF,  // 30 - purple-normal
+   0x442882FF,  // 31 - purple-dark
+   0xA6B18EFF,  // 32 - green-cloudy
+   0x4E631EFF,  // 33 - green-jacket
+   0x394816FF,  // 34 - green-dirty
+   0x242D0EFF,  // 35 - green-dark
+   0xF0FD93FF,  // 36 - yellow-light
+   0xD9E074FF,  // 37 - yellow-moon
+   0xC7E336FF,  // 38 - yellow-neon
+   0xDCB22FFF,  // 39 - yellow-warm
+   0x000000FF,  // 40 - true-black
+   0xFFFFFFFF,  // 41 - true-white  (default transparent sentinel)
 };
-void liren_init_palette(LiRen* r) {
-   if (!r) return;
-   for (int i = 0; i < PALETTE_SIZE; ++i) {
-      r->palette[i] = PALETTE_V5[i];
-   }
-}
+const int     LR_DEFAULT_PALETTE_SIZE      = (int)(sizeof(LR_DEFAULT_PALETTE) / sizeof(LR_DEFAULT_PALETTE[0]));
+const uint8_t LR_DEFAULT_TRANSPARENT_INDEX = (uint8_t)(sizeof(LR_DEFAULT_PALETTE) / sizeof(LR_DEFAULT_PALETTE[0]) - 1);
 
 Layer* liren_find_layer(LiRen* r, LR_LayerHandle handle) {
    if (!r || handle == 0) return NULL;
@@ -113,6 +115,9 @@ static void liren_apply_config_defaults(LR_Config* out_cfg, const LR_Config* in_
       .resolution = LR_RES_VGA,
       .resize_mode = LR_RESIZE_FIT,
       .window_mode = LR_WINDOW_WINDOWED,
+      .palette = NULL,
+      .palette_size = 0,
+      .transparent_color_index = 0,
       .log_fn = NULL,
       .log_user_data = NULL,
    };
@@ -122,7 +127,20 @@ static void liren_apply_config_defaults(LR_Config* out_cfg, const LR_Config* in_
    if (cfg.scale_factor < 1.0f) cfg.scale_factor = 1.0f;
    if (cfg.scale_factor > 20.0f) cfg.scale_factor = 20.0f;
 
+   // if caller didn't supply a palette, fall back to liren's default
+   if (!cfg.palette) {
+      cfg.palette                 = LR_DEFAULT_PALETTE;
+      cfg.palette_size            = LR_DEFAULT_PALETTE_SIZE;
+      cfg.transparent_color_index = LR_DEFAULT_TRANSPARENT_INDEX;
+   }
+
    *out_cfg = cfg;
+}
+
+// helper to log from lr_create before we have a fully-initialized LiRen.
+// uses cfg.log_fn directly if present; otherwise no-op (we have no other channel).
+static void lr_create_log(const LR_Config* cfg, const char* msg) {
+   if (cfg && cfg->log_fn) cfg->log_fn(cfg->log_user_data, msg);
 }
 
 // PUBLIC API
@@ -131,8 +149,27 @@ LiRen* lr_create(const LR_Config* user_cfg) {
    LR_Config cfg;
    liren_apply_config_defaults(&cfg, user_cfg);
 
+   // validate palette
+   if (!cfg.palette) {
+      lr_create_log(&cfg, "liren: cfg.palette is NULL");
+      return NULL;
+   }
+   if (cfg.palette_size <= 0) {
+      lr_create_log(&cfg, "liren: cfg.palette_size <= 0");
+      return NULL;
+   }
+   if (cfg.palette_size > 256) {
+      lr_create_log(&cfg, "liren: cfg.palette_size > 256");
+      return NULL;
+   }
+   if (cfg.transparent_color_index >= cfg.palette_size) {
+      lr_create_log(&cfg, "liren: cfg.transparent_color_index >= palette_size");
+      return NULL;
+   }
+
    LiRen* r = (LiRen*)calloc(1, sizeof(LiRen));
    if (!r) {
+      lr_create_log(&cfg, "liren: out of memory allocating LiRen");
       return NULL;
    }
 
@@ -147,15 +184,24 @@ LiRen* lr_create(const LR_Config* user_cfg) {
 
    set_logical_size(r);
 
-   // palette
-   liren_init_palette(r);
-   r->clear_color_index = 4; // mono-black
-   r->transparent_color_index = PALETTE_TRANSPARENT;
+   // palette — copy into liren-owned storage so the caller can free theirs.
+   r->palette_size = cfg.palette_size;
+   r->palette = (ui32*)malloc(sizeof(ui32) * (size_t)r->palette_size);
+   if (!r->palette) {
+      liren_log(r, "liren: out of memory allocating palette");
+      free(r);
+      return NULL;
+   }
+   memcpy(r->palette, cfg.palette, sizeof(ui32) * (size_t)r->palette_size);
+   r->transparent_color_index = cfg.transparent_color_index;
+   r->clear_color_index = 4; // mono-dark in the default palette
 
    // layers
    r->layer_capacity = 16; // start with space for 16 layers
    r->layers = (Layer*)calloc(r->layer_capacity, sizeof(Layer));
    if (!r->layers) {
+      liren_log(r, "liren: out of memory allocating layers");
+      free(r->palette);
       free(r);
       return NULL;
    }
@@ -215,6 +261,10 @@ void lr_destroy(LiRen* r) {
       free(r->layers);
       r->layers = NULL;
    }
+   if (r->palette) {
+      free(r->palette);
+      r->palette = NULL;
+   }
    free(r);
 }
 
@@ -238,7 +288,7 @@ void lr_end_frame(LiRen* r) {
 
 void lr_set_clear_color(LiRen* r, uint8_t color_index) {
    if (!r || !r->initialized) return;
-   if (color_index >= PALETTE_SIZE) return;
+   if (color_index >= r->palette_size) return;
    r->clear_color_index = color_index;
 }
 
@@ -352,7 +402,7 @@ void lr_layer_set_size(LiRen* r, LR_LayerHandle handle, uint8_t size) {
 void lr_draw_rect(LiRen* r, LR_LayerHandle handle,
                   LR_Rect rect, uint8_t color_index) {
    if (!r || !r->initialized) return;
-   if (color_index >= PALETTE_SIZE) return;
+   if (color_index >= r->palette_size) return;
    if (!r->backend || !r->backend->fill_rect) return;
 
    Layer* layer = liren_find_layer(r, handle);
@@ -365,7 +415,7 @@ void lr_draw_rect(LiRen* r, LR_LayerHandle handle,
 void lr_draw_fill(LiRen* r, LR_LayerHandle handle,
                   uint8_t color_index) {
    if (!r || !r->initialized) return;
-   if (color_index >= PALETTE_SIZE) return;
+   if (color_index >= r->palette_size) return;
    if (!r->backend || !r->backend->fill_rect) return;
 
    Layer* layer = liren_find_layer(r, handle);
@@ -378,7 +428,7 @@ void lr_draw_fill(LiRen* r, LR_LayerHandle handle,
 void lr_draw_pixel(LiRen* r, LR_LayerHandle handle,
                    int x, int y, uint8_t color_index) {
    if (!r || !r->initialized) return;
-   if (color_index >= PALETTE_SIZE) return;
+   if (color_index >= r->palette_size) return;
    if (!r->backend || !r->backend->fill_rect) return;
 
    Layer* layer = liren_find_layer(r, handle);
@@ -461,11 +511,11 @@ const uint32_t* lr_get_palette(LiRen* r, int* out_size) {
       if (out_size) *out_size = 0;
       return NULL;
    }
-   if (out_size) *out_size = PALETTE_SIZE;
+   if (out_size) *out_size = r->palette_size;
    return r->palette;
 }
 
 uint8_t lr_get_transparent_index(LiRen* r) {
-   if (!r) return PALETTE_TRANSPARENT;
+   if (!r) return LR_DEFAULT_TRANSPARENT_INDEX;
    return r->transparent_color_index;
 }

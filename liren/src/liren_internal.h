@@ -22,8 +22,6 @@ typedef int32_t  si32;
 typedef int64_t  si64;
 
 // constants - maybe decouple some of these later?
-#define PALETTE_SIZE        36
-#define PALETTE_TRANSPARENT 35
 #define GAME_WIDTH_VGA      640
 #define GAME_HEIGHT_VGA     480
 #define GAME_WIDTH_FWVGA    854
@@ -69,7 +67,9 @@ typedef struct {
 } Sprite;
 
 // sentinel value passed to backend->blit_indexed when no tint should be applied.
-// 0xFF is safe because PALETTE_SIZE is 36.
+// 0xFF is safe because palette indices are stored as ui8 and we cap palette
+// size to 256; the transparent index is always less than the palette size,
+// and any valid palette has fewer than 256 entries.
 #define LIREN_TINT_NONE 0xFF
 
 // vtable
@@ -130,8 +130,10 @@ struct LiRen {
    int logical_width;
    int logical_height;
 
-   // palette (ARGB, hardcoded rn, look into this)
-   ui32 palette[PALETTE_SIZE];
+   // palette: owned, copied from LR_Config on create.
+   // size is fixed for a renderer's lifetime.
+   ui32* palette;
+   int   palette_size;
    ui8 clear_color_index;
    ui8 transparent_color_index;
 
@@ -168,9 +170,6 @@ struct LiRen {
    void (*log_fn)(void* user, const char* msg);
    void* log_user_data;
 };
-
-// initialize hardcoded palette
-void liren_init_palette(LiRen* r);
 
 // find a layer by handle (used by core drawing functions)
 Layer* liren_find_layer(LiRen* r, LR_LayerHandle handle);

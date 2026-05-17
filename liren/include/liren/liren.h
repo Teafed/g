@@ -55,10 +55,25 @@ typedef struct {
    LR_ResizeMode resize_mode;
    LR_WindowMode window_mode;
 
+   // palette: pointer + size. liren copies internally.
+   // each entry is 0xRRGGBBAA. transparent_color_index must be a valid index
+   // into the palette and is the index drawing treats as see-through.
+   // if palette is NULL, liren uses LR_DEFAULT_PALETTE and ignores palette_size
+   // and transparent_color_index, using LR_DEFAULT_PALETTE_SIZE and
+   // LR_DEFAULT_TRANSPARENT_INDEX instead.
+   const uint32_t* palette;
+   int             palette_size;
+   uint8_t         transparent_color_index;
+
    // callbacks
    void (*log_fn)(void* user, const char* msg);
    void* log_user_data;
 } LR_Config;
+
+// default palette that ships with liren (the engine can override via LR_Config).
+extern const uint32_t LR_DEFAULT_PALETTE[];
+extern const int      LR_DEFAULT_PALETTE_SIZE;
+extern const uint8_t  LR_DEFAULT_TRANSPARENT_INDEX;
 
 // lifecycle
 LiRen* lr_create(const LR_Config* cfg);
