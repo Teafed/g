@@ -68,9 +68,8 @@ void d_timing_print_state(void);
 void d_print_performance_info(void);
 
 // INPUT
-#include "input.h" // for InputEvent, GameContext
+#include "input.h" // for InputEvent
 const char* d_name_input_event(InputEvent e);
-const char* d_name_game_context(GameContext context);
 const char* d_name_input_raw_key(int key);
 void d_print_all_mappings(void);
 void d_print_current_input_state(int dev);

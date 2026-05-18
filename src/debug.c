@@ -109,18 +109,6 @@ const char* d_name_input_event(InputEvent e) {
     return (e >= 0 && e < INPUT_MAX) ? names[e] : "UNKNOWN!";
 }
 
-const char* d_name_game_context(GameContext context) {
-   static const char* names[] = {
-      "CONTEXT_TITLE",
-      "CONTEXT_MENU",
-      "CONTEXT_DEVICE_SELECT",
-      "CONTEXT_PLAY",
-      "CONTEXT_DBOX",
-      "CONTEXT_MAX"
-   };
-   return (context < CONTEXT_MAX) ? names[context] : "UNKNOWN!";
-}
-
 const char* d_name_input_raw_key(int key) {
    return SDL_GetKeyName(key);
 }
