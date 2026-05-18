@@ -6,112 +6,93 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MAX_MENU_OPTIONS 16
-#define MAX_CHOICES 8
-#define MAX_MENU_TITLE_LEN 64
-#define MAX_OPTION_TEXT_LEN 32
-#define MAX_SCENE_TYPES 16
+#define MENU_MAX_OPTIONS 16
+#define MENU_MAX_CHOICES 8
 
+// option type tag. each tag selects one branch of MenuOption's union
 typedef enum {
-   MENU_TYPE_MAIN,
-   MENU_TYPE_CHARSEL,
-   MENU_TYPE_SETTINGS,
-   MENU_TYPE_PAUSE,
-   MENU_TYPE_MAX
-} MenuType;
+   MENU_OPT_ACTION, // press A -> callback
+   MENU_OPT_TOGGLE, // press A -> flip a bool
+   MENU_OPT_SLIDER, // L/R moves an int between min/max
+   MENU_OPT_CHOICE, // L/R stages, A commits via getter/setter
+} MenuOptionType;
 
-typedef enum {
-   OPTION_TYPE_ACTION,
-   OPTION_TYPE_TOGGLE,
-   OPTION_TYPE_CHOICE,
-   OPTION_TYPE_SLIDER,
-   OPTION_TYPE_SUBMENU,
-   OPTION_TYPE_CHARSEL,
-   OPTION_TYPE_MAX
-} OptionType;
+// action option's on-select callback
+typedef void (*MenuActionFn)(void* user);
 
-typedef enum {
-   MENU_ACTION_NONE,
-   MENU_ACTION_SCENE_CHANGE,  // action_data -> SceneType
-   MENU_ACTION_GAME_SETUP,    // action_data -> GameModeType
-                              // scene change to charsel
-   MENU_ACTION_BACK,
-   MENU_ACTION_QUIT,
-   MENU_ACTION_MAX
-} MenuAction;
+// menu calls get() to render the current value and to seed the staged value
+// menu calls set() once on commit (press A while a staged value is pending)
+typedef int  (*MenuChoiceGet)(void* user);
+typedef void (*MenuChoiceSet)(void* user, int value);
 
-typedef void (*SettingChange)(int new_value);
+// single option in a menu
+typedef struct {
+   const char*    label;      // static string, not copied
+   MenuOptionType type;
+   bool           enabled;
 
-typedef struct MenuOption {
-   char text[MAX_OPTION_TEXT_LEN];
-   OptionType type;
-   bool enabled;
-   
    union {
-      struct {  // ACTION
-         MenuAction action;
-         int action_data;
-      };
-      struct {  // TOGGLE
-         bool* toggle_value;  // points to actual game setting
-      };
-      struct {  // CHOICE
-         char* choices[MAX_CHOICES];
-         int choice_count;
-         int unconfirmed_choice; // -1 if not actively changing
-         int* current_choice;  // points to actual setting
-         SettingChange on_change;
-      };
-      struct {  // SLIDER
-         int* slider_value;
-         int min_value;
-         int max_value;
-         int step;
-      };
-      struct { // SUBMENU
-         struct Menu* child;
-      };
-      struct {  // CHARSEL
-         // this will change once i get to it
-         int character_index;
-      };
+      struct {  // MENU_OPT_ACTION
+         MenuActionFn on_select;
+         void*        user;
+      } action;
+
+      struct {  // MENU_OPT_TOGGLE
+         bool* target;
+      } toggle;
+
+      struct {  // MENU_OPT_SLIDER
+         int* target;
+         int  min;
+         int  max;
+         int  step;
+      } slider;
+
+      struct {  // MENU_OPT_CHOICE
+         const char* const* choices;
+         int                count;
+         MenuChoiceGet      get;
+         MenuChoiceSet      set;
+         void*              user;
+      } choice;
    };
 } MenuOption;
 
-typedef struct Menu {
-   char title[MAX_MENU_TITLE_LEN];
-   MenuType type;
-   MenuOption options[MAX_MENU_OPTIONS];
-   int option_count;
-   int selected_option[MAX_PLAYERS];  // per-player selection
-   
-   LR_LayerHandle layer_handle;
-   struct Menu* parent;
+// per-player runtime state. one entry per slot in [0, MAX_PLAYERS)
+typedef struct {
+   int cursor; // index into options[]; clamped to [0, option_count)
+   int unconfirmed_choice; // staged value for the option under the cursor
+} MenuPlayerState;
+
+// scenes own Menu* in their per-scene data struct
+// any scenes that want submenus have to track the active Menu* and swap it themselves
+typedef struct {
+   const char* title;
+   MenuOption  options[MENU_MAX_OPTIONS];
+   int         option_count;
+
+   MenuPlayerState players[MAX_PLAYERS];
+
+   LR_LayerHandle layer;
 } Menu;
 
-// core functions
-void menu_system_init(void); // called once in scene_init()
-Menu* menu_create(MenuType type, const char* title, LiRen* r);
-void menu_handle_input(InputEvent event, InputState state, int device_id);
-void menu_render(Menu* root, LiRen* r); // menu points to root
-void menu_destroy(Menu* menu, LiRen* r); // called in x_scene_destroy()
-void menu_system_cleanup(void); // just set g_active_menu to NULL
+Menu* menu_create (LiRen* r, const char* title);
+void  menu_destroy(Menu* m, LiRen* r);
 
-// option management
-void menu_add_action_option(Menu* menu, const char* text, MenuAction action, int data);
-void menu_add_submenu_option(Menu* menu, const char* text, Menu* submenu);
-void menu_add_toggle_option(Menu* menu, const char* text, bool* toggle_ptr);
-void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr, SettingChange on_change);
-void menu_add_slider_option(Menu* menu, const char* text, int* value_ptr, int min, int max, int step);
-void menu_add_charsel_option(Menu* menu, const char* text, int character_index);
+void menu_add_action(Menu* m, const char* label,
+                     MenuActionFn on_select, void* user);
+void menu_add_toggle(Menu* m, const char* label, bool* target);
+void menu_add_slider(Menu* m, const char* label,
+                     int* target, int min, int max, int step);
+void menu_add_choice(Menu* m, const char* label,
+                     const char* const* choices, int choice_count,
+                     MenuChoiceGet get, MenuChoiceSet set, void* user);
 
-void menu_set_option_enabled(Menu* menu, int option_index, bool enabled);
-void menu_remove_option(Menu* menu, int option_index);
+void menu_set_option_enabled(Menu* m, int index, bool enabled);
+int  menu_option_count(const Menu* m);
 
-// navigation and state
-void menu_make_child(Menu* child, Menu* parent, int parent_option_index);
-void menu_navigate_to_child(Menu* menu, int option_index, int player);
-void menu_navigate_to_parent(Menu* menu, int player);
-void menu_set_active(Menu* menu);
+// per-frame
+void menu_handle_input(Menu* m, InputEvent e, InputState st, int device_id);
+void menu_render      (Menu* m, LiRen* r, int x, int y);
 
 #endif

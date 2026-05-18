@@ -76,15 +76,4 @@ void d_print_all_mappings(void);
 void d_print_current_input_state(int dev);
 void d_print_devices(void);
 
-// SCENE
-#include "scene.h"
-const char* d_name_scene_type(SceneType scene);
-const char* d_name_game_mode_type(GameModeType type);
-
-// MENU
-#include "menu.h"
-const char* d_name_menu_type(MenuType type);
-const char* d_name_option_type(OptionType type);
-const char* d_name_menu_action(MenuAction action);
-
 #endif

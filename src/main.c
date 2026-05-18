@@ -1,8 +1,11 @@
 #include "timing.h"
 #include "input.h"
 #include "scene.h"
-#include "debug.h"
+#include "game.h"
+#include "game_session.h"
 #include "game_assets.h"
+#include "scenes/title.h"
+#include "debug.h"
 
 #include <liren/liren.h>
 #include <SDL2/SDL.h>
@@ -19,10 +22,14 @@ typedef struct {
 } Game;
 
 Game g_game = { 0 };
-static LiRen*      g_liren  = NULL;
-static GameAssets* g_assets = NULL;
+static LiRen* g_liren = NULL;
+static GameAssets* g_assets  = NULL;
+static GameSession* g_session = NULL;
+static SceneStack* g_stack   = NULL;
 
-GameAssets* game_get_assets(void) { return g_assets; }
+GameAssets*  game_get_assets (void) { return g_assets;  }
+GameSession* game_get_session(void) { return g_session; }
+SceneStack*  game_get_stack  (void) { return g_stack;   }
 
 // game palette (teaf-v5). engine owns it; liren just borrows it via LR_Config.
 // indices are referenced throughout the game; see liren's LR_DEFAULT_PALETTE
@@ -91,12 +98,12 @@ int main(int argc, char* argv[]) {
    int framerate = 60;
    if (!game_handle_flags(argc, argv, &logging_mode, &scale_factor, &framerate))
       return 1;
-   
+
    if (!game_init(scale_factor, framerate)) {
       d_err("failed to initialize game");
       return 1;
    }
-   
+
    while (g_game.state == GAME_RUNNING) {
       timing_frame_start();
       float delta_time = timing_get_delta_time();
@@ -104,11 +111,10 @@ int main(int argc, char* argv[]) {
       game_handle_events(delta_time);  // input & devices
       game_update(delta_time);         // calculations for next frame
       game_render();                   // render next frame
-      
+
       timing_frame_end();
-      
+
       if (timing_should_limit_frame()) { SDL_Delay(timing_get_frame_duration()); }
-      // if (timing_get_frame_count() == 3) { game_shutdown(); }
    }
 
    return 0;
@@ -116,13 +122,11 @@ int main(int argc, char* argv[]) {
 
 static void liren_log_adapter(void* user, const char* msg) {
    (void)user;
-   // route to log system
    d_log("%s", msg);
 }
 
-
 bool game_init(float scale_factor, int framerate) {
-   // init SDL
+   // SDL
    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0) {
       d_err("SDL could not initialize! SDL_Error: %s", SDL_GetError());
       return false;
@@ -130,7 +134,7 @@ bool game_init(float scale_factor, int framerate) {
 
    timing_init(framerate);
 
-   // liren config
+   // liren
    LR_Config cfg = {
       .scale_factor            = scale_factor,
       .resolution              = LR_RES_FWVGA,
@@ -149,6 +153,7 @@ bool game_init(float scale_factor, int framerate) {
    }
    lr_set_clear_color(g_liren, COL_MONO_DARK);
 
+   // assets
    g_assets = game_assets_load(g_liren, "assets/sheets/");
    if (!g_assets) {
       d_err("failed to load game assets");
@@ -156,19 +161,39 @@ bool game_init(float scale_factor, int framerate) {
       g_liren = NULL;
       return false;
    }
-   
+
+   // input
    input_init();
-   scene_init(g_liren);
+
+   // session
+   g_session = game_session_create();
+   if (!g_session) {
+      d_err("failed to create game session");
+      game_assets_destroy(g_assets); g_assets = NULL;
+      lr_destroy(g_liren);           g_liren  = NULL;
+      return false;
+   }
+
+   // scene stack
+   g_stack = scene_stack_create(g_liren);
+   if (!g_stack) {
+      d_err("failed to create scene stack");
+      game_session_destroy(g_session); g_session = NULL;
+      game_assets_destroy(g_assets);   g_assets  = NULL;
+      lr_destroy(g_liren);             g_liren   = NULL;
+      return false;
+   }
+   scene_stack_push(g_stack, title_scene_create());
 
    g_game.state = GAME_RUNNING;
    d_log("Initialized :)\n");
-   
+
    return true;
 }
 
 void game_handle_events(float delta_time) {
    SDL_Event e;
-   
+
    // TODO: use liren_handle_event
    while (SDL_PollEvent(&e)) {
       switch (e.type) {
@@ -192,43 +217,36 @@ void game_handle_events(float delta_time) {
       }
    }
 
-   // handle all the input logic
    input_update(delta_time);
 }
 
 void game_update(float delta_time) {
-   scene_update(delta_time);
+   scene_stack_update(g_stack, delta_time);
 }
 
 void game_render(void) {
    if (!g_liren) return;
 
    lr_begin_frame(g_liren);
-   scene_render(g_liren);
+   scene_stack_render(g_stack, g_liren);
    lr_end_frame(g_liren);
 }
 
-void game_escape(uint32_t timer) {            
+void game_escape(uint32_t timer) {
    if (timer >= 255) game_shutdown();
    // TODO: reimplement quit overlay in liren
-   // else renderer_draw_system_quit((uint8_t)timer);
 }
 
 void game_shutdown(void) {
    d_logl("\n");
    d_log("shutting down the game......");
    g_game.state = GAME_QUIT;
-   
-   scene_destroy();
+
+   if (g_stack)   { scene_stack_destroy(g_stack);     g_stack   = NULL; }
+   if (g_session) { game_session_destroy(g_session);  g_session = NULL; }
    input_shutdown();
-   if (g_assets) {
-      game_assets_destroy(g_assets);
-      g_assets = NULL;
-   }
-   if (g_liren) {
-      lr_destroy(g_liren);
-      g_liren = NULL;
-   }
+   if (g_assets)  { game_assets_destroy(g_assets);    g_assets  = NULL; }
+   if (g_liren)   { lr_destroy(g_liren);              g_liren   = NULL; }
    SDL_Quit();
 }
 
@@ -236,7 +254,7 @@ bool game_handle_flags(int argc, char *argv[], int* logging_mode, float* scale_f
    for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-') {
          char flag = argv[i][1];
-         
+
          if (i + 1 >= argc) {
             fprintf(stderr, "Missing value for -%c\n", flag);
             return false;

@@ -1,628 +1,316 @@
 #include "menu.h"
-#include "file.h"
-#include "scene.h"
 #include "debug.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-static Menu* g_active_menu = NULL;
-static Menu* last_active_menu = NULL; // to track when active menu changes
-static void format_option_text(MenuOption* opt, char* buffer, int buffer_size);
-static void process_action(MenuAction action, int data, int player);
-static void hide_all_layers(Menu* menu, LiRen* r);
-static void menu_draw_main(Menu* menu, int chain_position, LiRen* r);
-static void menu_draw_settings(Menu* menu, LiRen* r);
-static void menu_draw_charsel(Menu* menu, LiRen* r);
+// --- option helpers ---
 
-// CORE FUNCTIONS
-void menu_system_init(void) {
-   // memset(g_menu_memory, 0, sizeof(g_menu_memory));
-   g_active_menu = NULL;
-}
-
-Menu* menu_create(MenuType type, const char* title, LiRen* r) {
-   Menu* menu = malloc(sizeof(Menu));
-   if (d_dne(menu)) return NULL;
-   
-   strncpy(menu->title, title, MAX_MENU_TITLE_LEN - 1);
-   menu->title[MAX_MENU_TITLE_LEN - 1] = '\0';
-   
-   menu->type = type;
-   menu->option_count = 0;
-   
-   for (int i = 0; i < MAX_PLAYERS; i++) {
-      menu->selected_option[i] = 0;
+// allocate the next slot in m->options. returns NULL and logs if full
+static MenuOption* append_option(Menu* m, const char* label) {
+   if (!m) return NULL;
+   if (m->option_count >= MENU_MAX_OPTIONS) {
+      d_err("menu '%s' is full (max %d); dropping option '%s'",
+            m->title ? m->title : "?", MENU_MAX_OPTIONS,
+            label ? label : "?");
+      return NULL;
    }
-
-   menu->layer_handle = lr_layer_create(r, false);
-   menu->parent = NULL;
-
-   return menu;
-}
-
-void menu_handle_input(InputEvent event, InputState state, int device_id) {
-   if (!state.pressed && (state.held && state.duration < 0.3f)) return;
-   
-   int player = input_get_player(device_id);
-   if (!g_active_menu || player <= 0 || player > MAX_PLAYERS) return;
-
-   player--; // use as index
-   Menu* menu = g_active_menu;
-   int* selected = &menu->selected_option[player];
-
-   // make sure at least one option is enabled
-   bool any_enabled = false;
-   for (int i = 0; i < menu->option_count; i++) {
-      if (menu->options[i].enabled) {
-         any_enabled = true;
-         break;
-      }
-   }
-   
-   switch (event) {
-   case INPUT_UP:
-      if (!any_enabled) break;
-      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
-         if (menu->options[*selected].unconfirmed_choice != -1) break;
-      }
-      // go to prev option
-      do {
-         // TODO: assuming charsel has row size 3 rn, round it up
-         int amt = menu->options[*selected].type == OPTION_TYPE_CHARSEL ? 3 : 1;
-         (*selected) -= amt;
-         if (*selected < 0) *selected = menu->option_count + (*selected); // TODO: i don't think this accounts for disableds
-      } while (!menu->options[*selected].enabled && menu->option_count > 1);
-      break;
-      
-   case INPUT_DOWN:
-      if (!any_enabled) break;
-      if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
-         if (menu->options[*selected].unconfirmed_choice != -1) break;
-      }
-      // go to next option
-      do {
-         int amt = menu->options[*selected].type == OPTION_TYPE_CHARSEL ? 3 : 1;
-         (*selected) += amt;
-         if (*selected >= menu->option_count) *selected = (*selected) - menu->option_count;
-      } while (!menu->options[*selected].enabled && menu->option_count > 1);
-      break;
-      
-   case INPUT_LEFT:
-      if (!any_enabled) break;
-      if (menu->options[*selected].type == OPTION_TYPE_CHARSEL) {
-         do {
-            int amt = *selected % 3 == 0 ? (-3 + 1) : 1;
-            *selected -= amt;
-            if (*selected < 0) *selected += amt;
-         } while (!menu->options[*selected].enabled && menu->option_count > 1);
-      }
-      else if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
-         MenuOption* opt = &menu->options[*selected];
-         if (opt->current_choice) {
-            if (*opt->current_choice > 0 && opt->unconfirmed_choice == -1) {
-               opt->unconfirmed_choice = *opt->current_choice - 1;
-            } else if (opt->unconfirmed_choice > 0) {
-               opt->unconfirmed_choice--;
-            }
-         }
-      } else if (menu->options[*selected].type == OPTION_TYPE_SLIDER) {
-         MenuOption* opt = &menu->options[*selected];
-         if (opt->slider_value && *opt->slider_value > opt->min_value) {
-            *opt->slider_value -= opt->step;
-            if (*opt->slider_value < opt->min_value) {
-               *opt->slider_value = opt->min_value;
-            }
-         }
-      }
-      break;
-      
-   case INPUT_RIGHT:
-      if (!any_enabled) break;
-      if (menu->options[*selected].type == OPTION_TYPE_CHARSEL) {
-         do {
-            int amt = (*selected + 1) % 3 == 0 ? (-3 + 1) : 1;
-            *selected += amt;
-            if (*selected >= menu->option_count) *selected -= amt;
-         } while (!menu->options[*selected].enabled && menu->option_count > 1);
-      }
-      else if (menu->options[*selected].type == OPTION_TYPE_CHOICE) {
-         MenuOption* opt = &menu->options[*selected];
-         if (opt->current_choice) {
-            if (*opt->current_choice < opt->choice_count - 1 && opt->unconfirmed_choice == -1) {
-               opt->unconfirmed_choice = *opt->current_choice + 1;
-            } else if (opt->unconfirmed_choice < opt->choice_count - 1) {
-               if (opt->unconfirmed_choice != -1) opt->unconfirmed_choice++;
-            }
-         }
-      } else if (menu->options[*selected].type == OPTION_TYPE_SLIDER) {
-         MenuOption* opt = &menu->options[*selected];
-         if (opt->slider_value && *opt->slider_value < opt->max_value) {
-            *opt->slider_value += opt->step;
-            if (*opt->slider_value > opt->max_value) {
-               *opt->slider_value = opt->max_value;
-            }
-         }
-      }
-      break;
-      
-   case INPUT_A:
-      if (menu->options[*selected].enabled) {
-         MenuOption* opt = &menu->options[*selected];
-         
-         switch (opt->type) {
-         case OPTION_TYPE_ACTION:
-            process_action(opt->action, opt->action_data, player);
-            break;
-            
-         case OPTION_TYPE_TOGGLE:
-            if (opt->toggle_value) {
-               *opt->toggle_value = !(*opt->toggle_value);
-               d_logv(2, "option %s changed to %s", opt->text, (*opt->toggle_value) ? "TRUE" : "FALSE");
-            }
-            break;
-            
-         case OPTION_TYPE_CHOICE:
-            if (opt->current_choice && opt->unconfirmed_choice != -1) {
-               // *opt->current_choice = opt->unconfirmed_choice;
-               int new_value = opt->unconfirmed_choice;
-               opt->unconfirmed_choice = -1;
-               d_log("option %s changed to %s", opt->text, opt->choices[new_value]);
-               if (opt->on_change) {
-                  opt->on_change(new_value);
-               } else {
-                  *opt->current_choice = new_value; // fallback for non-callback options
-               }
-            }
-            break;
-            
-         case OPTION_TYPE_SLIDER:
-            // maybe open a detailed slider interface?
-            // or just do nothing for now
-            break;
-            
-         case OPTION_TYPE_SUBMENU:
-            menu_navigate_to_child(menu, *selected, player);
-            break;
-            
-         case OPTION_TYPE_CHARSEL:
-            // TODO: this
-            break;
-            
-         default:
-            d_log("unhandled option type: %s", d_name_option_type(opt->type));
-         }
-      }
-      break;
-      
-   case INPUT_B:
-      if (menu->parent) {
-         menu_navigate_to_parent(menu, player);
-      } else if (menu->options[*selected].enabled) {
-         if (menu->options[*selected].unconfirmed_choice != -1) {
-            menu->options[*selected].unconfirmed_choice = -1;
-         }
-      }
-      break;
-      
-   default:
-      break;
-   }
-}
-
-void menu_render(Menu* root, LiRen* r) {
-   if (!root) return;
-   
-   int max_depth = 32; // max menus to render in a chain
-   Menu* chain[max_depth];
-   int chain_length = 0;
-
-   Menu* current = g_active_menu;
-   while (current && chain_length < max_depth) {
-      chain[chain_length++] = current;
-      current = current->parent;
-   }
-   // prolly need to include an additional check on chain rendering, not all menu types are gonna show parent menus
-   // actually i should probably do this in a different way because what about rendering charsel menus?
-   // probably figure out the design of that screen first, but maybe would be good to support players being able to control individual submenu
-   
-   if (g_active_menu != last_active_menu) {
-      hide_all_layers(root, r);
-      for (int i = chain_length - 1; i >= 0; i--) {
-         Menu* menu = chain[i];
-         lr_layer_set_visible(r, menu->layer_handle, true);
-      }
-      last_active_menu = g_active_menu;
-   }
-   
-   // render chain from root to active (reverse order)
-   for (int i = chain_length - 1; i >= 0; i--) {
-      Menu* menu = chain[i];
-      
-      // render based on menu type
-      switch (menu->type) {
-      case MENU_TYPE_MAIN:
-         menu_draw_main(menu, chain_length - 1 - i, r); // pass position in chain
-         break;
-      case MENU_TYPE_SETTINGS:
-         menu_draw_settings(menu, r);
-         break;
-      case MENU_TYPE_CHARSEL:
-         menu_draw_charsel(menu, r);
-         break;
-      case MENU_TYPE_PAUSE:
-         // menu_draw_pause(menu);
-         break;
-      default:
-         return;
-      }
-   }
-}
-
-void menu_destroy(Menu* menu, LiRen* r) {
-   if (d_dne(menu)) return;
-   
-   // destroy layer
-   lr_layer_destroy(r, menu->layer_handle);
-   
-   free(menu);
-   menu = NULL;
-}
-
-void menu_system_cleanup(void) {
-   g_active_menu = NULL;
-   // note: menus are destroyed individually in x_scene_destroy()
-}
-
-// OPTION MANAGEMENT
-void menu_add_action_option(Menu* menu, const char* text, MenuAction action, int data) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS) return;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_ACTION;
+   MenuOption* opt = &m->options[m->option_count++];
+   memset(opt, 0, sizeof(*opt));
+   opt->label   = label;
    opt->enabled = true;
-   
-   opt->action = action;
-   opt->action_data = data;
-   
-   menu->option_count++;
+   return opt;
 }
-
-void menu_add_submenu_option(Menu* menu, const char* text, Menu* submenu) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS) return;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_SUBMENU;
-   opt->enabled = true;
-   
-   if (submenu) {
-      opt->child = submenu;
-      submenu->parent = menu;
-   }  else {
-      d_err("submenu doesn't exist");
+// cursors won't move if everything is disabled
+static bool any_option_enabled(const Menu* m) {
+   for (int i = 0; i < m->option_count; i++) {
+      if (m->options[i].enabled) return true;
    }
-   
-   menu->option_count++;
+   return false;
 }
 
-void menu_add_toggle_option(Menu* menu, const char* text, bool* toggle_ptr) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS || !toggle_ptr) return;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_TOGGLE;
-   opt->enabled = true;
-   
-   opt->toggle_value = toggle_ptr;
-   
-   menu->option_count++;
+// step a cursor by delta, wrapping at boundaries and skipping disabled options
+static void step_cursor(const Menu* m, int* cursor, int delta) {
+   if (m->option_count <= 0) return;
+
+   int c = *cursor;
+   do {
+      c = ((c + delta) % m->option_count + m->option_count) % m->option_count;
+   } while (!m->options[c].enabled);
+
+   *cursor = c;
 }
 
-void menu_add_choice_option(Menu* menu, const char* text, char* choices[], int count, int* current_ptr, SettingChange on_change) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS || !choices || !current_ptr) return;
-   if (count > MAX_CHOICES) count = MAX_CHOICES;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_CHOICE;
-   opt->enabled = true;
-   
-   for (int i = 0; i < count; i++) { opt->choices[i] = choices[i]; }
-   opt->choice_count = count;
-   opt->unconfirmed_choice = -1;
-   opt->current_choice = current_ptr;
-   opt->on_change = on_change;
-   
-   menu->option_count++;
+// --- choice option helpers ---
+
+// used both for rendering and as the starting point when a player begins staging a new value
+static int choice_current(const MenuOption* opt) {
+   if (!opt->choice.get) return 0;
+   return opt->choice.get(opt->choice.user);
 }
 
-void menu_add_slider_option(Menu* menu, const char* text, int* value_ptr, int min, int max, int step) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS || !value_ptr) return;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_SLIDER;
-   opt->enabled = true;
-   
-   opt->slider_value = value_ptr;
-   opt->min_value = min;
-   opt->max_value = max;
-   opt->step = step;
-   
-   menu->option_count++;
-}
-
-void menu_add_charsel_option(Menu* menu, const char* text, int character_index) {
-   if (!menu || menu->option_count >= MAX_MENU_OPTIONS) return;
-   
-   MenuOption* opt = &menu->options[menu->option_count];
-   strncpy(opt->text, text, MAX_OPTION_TEXT_LEN - 1);
-   opt->text[MAX_OPTION_TEXT_LEN - 1] = '\0';
-   opt->type = OPTION_TYPE_CHARSEL;
-   opt->enabled = true;
-
-   opt->character_index = character_index;
-   
-   menu->option_count++;
-}
-
-void menu_set_option_enabled(Menu* menu, int option_index, bool enabled) {
-   if (!menu || option_index < 0 || option_index >= menu->option_count) return;
-   menu->options[option_index].enabled = enabled;
-}
-
-void menu_remove_option(Menu* menu, int option_index) {
-   if (!menu || option_index < 0 || option_index >= menu->option_count) return;
-   
-   for (int i = option_index; i < menu->option_count - 1; i++) {
-      menu->options[i] = menu->options[i + 1];
+// commit a staged value for a player on a choice option
+static void choice_commit(MenuOption* opt, MenuPlayerState* ps) {
+   if (ps->unconfirmed_choice < 0) return;
+   if (opt->choice.set) {
+      opt->choice.set(opt->choice.user, ps->unconfirmed_choice);
    }
-   
-   menu->option_count--;
-   
-   // adjust selected options if they're beyond the removed option
+   d_logv(2, "option '%s' set to '%s'", opt->label,
+          opt->choice.choices[ps->unconfirmed_choice]);
+   ps->unconfirmed_choice = -1;
+}
+
+static void choice_nudge(const MenuOption* opt, MenuPlayerState* ps, int delta) {
+   int next = (ps->unconfirmed_choice < 0)
+                 ? choice_current(opt) + delta
+                 : ps->unconfirmed_choice + delta;
+   if (next < 0) next = 0;
+   if (next >= opt->choice.count) next = opt->choice.count - 1;
+   ps->unconfirmed_choice = next;
+}
+
+// --- lifecycle ---
+
+Menu* menu_create(LiRen* r, const char* title) {
+   Menu* m = calloc(1, sizeof(Menu));
+   if (!m) {
+      d_err("failed to allocate Menu '%s'", title ? title : "?");
+      return NULL;
+   }
+   m->title        = title;
+   m->option_count = 0;
+   m->layer        = lr_layer_create(r, false);
+
+   // initialize per-player state: cursor at 0, no staged choice.
    for (int p = 0; p < MAX_PLAYERS; p++) {
-      if (menu->selected_option[p] > option_index) {
-         menu->selected_option[p]--;
-      } else if (menu->selected_option[p] >= menu->option_count && menu->option_count > 0) {
-         // if removed selected option was last one, select new last option
-         menu->selected_option[p] = menu->option_count - 1;
+      m->players[p].cursor             = 0;
+      m->players[p].unconfirmed_choice = -1;
+   }
+
+   return m;
+}
+
+void menu_destroy(Menu* m, LiRen* r) {
+   if (!m) return;
+   if (m->layer != LR_INVALID_LAYER) {
+      lr_layer_destroy(r, m->layer);
+   }
+   free(m);
+}
+
+// --- option builders ---
+
+void menu_add_action(Menu* m, const char* label,
+                     MenuActionFn on_select, void* user) {
+   MenuOption* opt = append_option(m, label);
+   if (!opt) return;
+   opt->type             = MENU_OPT_ACTION;
+   opt->action.on_select = on_select;
+   opt->action.user      = user;
+}
+
+void menu_add_toggle(Menu* m, const char* label, bool* target) {
+   if (!target) {
+      d_err("menu_add_toggle('%s'): null target", label ? label : "?");
+      return;
+   }
+   MenuOption* opt = append_option(m, label);
+   if (!opt) return;
+   opt->type          = MENU_OPT_TOGGLE;
+   opt->toggle.target = target;
+}
+
+void menu_add_slider(Menu* m, const char* label,
+                     int* target, int min, int max, int step) {
+   if (!target) {
+      d_err("menu_add_slider('%s'): null target", label ? label : "?");
+      return;
+   }
+   MenuOption* opt = append_option(m, label);
+   if (!opt) return;
+   opt->type          = MENU_OPT_SLIDER;
+   opt->slider.target = target;
+   opt->slider.min    = min;
+   opt->slider.max    = max;
+   opt->slider.step   = step;
+}
+
+void menu_add_choice(Menu* m, const char* label,
+                     const char* const* choices, int choice_count,
+                     MenuChoiceGet get, MenuChoiceSet set, void* user) {
+   if (!choices || choice_count <= 0 || !get || !set) {
+      d_err("menu_add_choice('%s'): invalid args", label ? label : "?");
+      return;
+   }
+   if (choice_count > MENU_MAX_CHOICES) choice_count = MENU_MAX_CHOICES;
+
+   MenuOption* opt = append_option(m, label);
+   if (!opt) return;
+   opt->type          = MENU_OPT_CHOICE;
+   opt->choice.choices = choices;
+   opt->choice.count   = choice_count;
+   opt->choice.get     = get;
+   opt->choice.set     = set;
+   opt->choice.user    = user;
+}
+
+// --- option mutation ---
+
+void menu_set_option_enabled(Menu* m, int index, bool enabled) {
+   if (!m || index < 0 || index >= m->option_count) return;
+   m->options[index].enabled = enabled;
+
+   // move cursor if it's on a disabled one
+   if (!enabled && any_option_enabled(m)) {
+      for (int p = 0; p < MAX_PLAYERS; p++) {
+         if (m->players[p].cursor == index) {
+            step_cursor(m, &m->players[p].cursor, 1);
+         }
       }
    }
 }
 
-// NAVIGATION AND STATE
-void menu_make_child(Menu* child, Menu* parent, int parent_option_index) {
-   if (!child || !parent || parent_option_index < 0 || parent_option_index >= parent->option_count) return;
-   
-   child->parent = parent;
+int menu_option_count(const Menu* m) {
+   return m ? m->option_count : 0;
 }
 
-void menu_navigate_to_child(Menu* menu, int option_index, int player) {
-   if (!menu || option_index < 0 || option_index >= menu->option_count) return;
-   if (player < 0 || player >= MAX_PLAYERS) return;
-   
-   MenuOption* opt = &menu->options[option_index];
-   if (opt->type == OPTION_TYPE_SUBMENU && opt->child) {
-      menu_set_active(opt->child);
+// --- input ---
+
+void menu_handle_input(Menu* m, InputEvent e, InputState st, int device_id) {
+   if (!m || !st.pressed) return;
+
+   int player = input_get_player(device_id);
+   if (player <= 0 || player > MAX_PLAYERS) return;
+   player--;
+
+   MenuPlayerState* ps  = &m->players[player];
+   MenuOption*      opt = (ps->cursor >= 0 && ps->cursor < m->option_count)
+                            ? &m->options[ps->cursor]
+                            : NULL;
+
+   switch (e) {
+   case INPUT_UP:
+      // while staging a choice, vertical movement is suppressed
+      if (ps->unconfirmed_choice >= 0) break;
+      if (any_option_enabled(m)) step_cursor(m, &ps->cursor, -1);
+      break;
+
+   case INPUT_DOWN:
+      if (ps->unconfirmed_choice >= 0) break;
+      if (any_option_enabled(m)) step_cursor(m, &ps->cursor, +1);
+      break;
+
+   case INPUT_LEFT:
+      if (!opt || !opt->enabled) break;
+      if (opt->type == MENU_OPT_CHOICE) {
+         choice_nudge(opt, ps, -1);
+      } else if (opt->type == MENU_OPT_SLIDER) {
+         if (opt->slider.target && *opt->slider.target > opt->slider.min) {
+            *opt->slider.target -= opt->slider.step;
+            if (*opt->slider.target < opt->slider.min)
+               *opt->slider.target = opt->slider.min;
+         }
+      }
+      break;
+
+   case INPUT_RIGHT:
+      if (!opt || !opt->enabled) break;
+      if (opt->type == MENU_OPT_CHOICE) {
+         choice_nudge(opt, ps, +1);
+      } else if (opt->type == MENU_OPT_SLIDER) {
+         if (opt->slider.target && *opt->slider.target < opt->slider.max) {
+            *opt->slider.target += opt->slider.step;
+            if (*opt->slider.target > opt->slider.max)
+               *opt->slider.target = opt->slider.max;
+         }
+      }
+      break;
+
+   case INPUT_A:
+      if (!opt || !opt->enabled) break;
+      switch (opt->type) {
+      case MENU_OPT_ACTION:
+         if (opt->action.on_select) opt->action.on_select(opt->action.user);
+         break;
+      case MENU_OPT_TOGGLE:
+         if (opt->toggle.target) {
+            *opt->toggle.target = !*opt->toggle.target;
+            d_logv(2, "option '%s' toggled to %s", opt->label,
+                   *opt->toggle.target ? "true" : "false");
+         }
+         break;
+      case MENU_OPT_CHOICE:
+         choice_commit(opt, ps);
+         break;
+      case MENU_OPT_SLIDER:
+         // no-op for now
+         break;
+      }
+      break;
+
+   case INPUT_B:
+      // cancel an in-progress choice stage
+      if (opt && opt->type == MENU_OPT_CHOICE && ps->unconfirmed_choice >= 0) {
+         ps->unconfirmed_choice = -1;
+      }
+      break;
+
+   default:
+      break;
    }
 }
 
-void menu_navigate_to_parent(Menu* menu, int player) {
-   if (!menu || !menu->parent) return;
-   if (player < 0 || player >= MAX_PLAYERS) return;
-   
-   menu_set_active(menu->parent);
-}
+// --- rendering ---
 
-void menu_set_active(Menu* menu) {
-   if (d_dne(menu)) return;
+// format one option's text into buffer. used by the default render path
+static void format_option(const MenuOption* opt, char* buf, int buf_size) {
+   if (!opt || !buf || buf_size <= 0) return;
 
-   g_active_menu = menu;
-   d_logv(2, "g_active_menu = %s", menu->title);
-}
-
-// INTERNAL
-static void format_option_text(MenuOption* opt, char* buffer, int buffer_size) {
-   if (!buffer) return;
    switch (opt->type) {
-   case OPTION_TYPE_ACTION:
-   case OPTION_TYPE_SUBMENU:
-      snprintf(buffer, buffer_size, "%s", opt->text);
+   case MENU_OPT_ACTION:
+      snprintf(buf, buf_size, "%s", opt->label ? opt->label : "?");
       break;
-      
-   case OPTION_TYPE_TOGGLE:
-      snprintf(buffer, buffer_size, "%s: %s", opt->text, 
-              (opt->toggle_value && *opt->toggle_value) ? "ON" : "OFF");
+
+   case MENU_OPT_TOGGLE:
+      snprintf(buf, buf_size, "%s: %s",
+               opt->label ? opt->label : "?",
+               (opt->toggle.target && *opt->toggle.target) ? "ON" : "OFF");
       break;
-      
-   case OPTION_TYPE_CHOICE:
-      if (opt->current_choice && *opt->current_choice < opt->choice_count) {
-         if (opt->unconfirmed_choice != -1) {
-            snprintf(buffer, buffer_size, "%s: %s *", opt->text, 
-                     opt->choices[opt->unconfirmed_choice]);
-         }
-         else {
-            snprintf(buffer, buffer_size, "%s: %s", opt->text, 
-                     opt->choices[*opt->current_choice]);
-         }
+
+   case MENU_OPT_SLIDER:
+      snprintf(buf, buf_size, "%s: %d",
+               opt->label ? opt->label : "?",
+               opt->slider.target ? *opt->slider.target : 0);
+      break;
+
+   case MENU_OPT_CHOICE: {
+      int current = choice_current(opt);
+      if (current < 0 || current >= opt->choice.count) {
+         snprintf(buf, buf_size, "%s: ???", opt->label ? opt->label : "?");
       } else {
-         snprintf(buffer, buffer_size, "%s: ???", opt->text);
+         snprintf(buf, buf_size, "%s: %s",
+                  opt->label ? opt->label : "?",
+                  opt->choice.choices[current]);
       }
       break;
-      
-   case OPTION_TYPE_SLIDER:
-      snprintf(buffer, buffer_size, "%s: %d", opt->text, 
-              opt->slider_value ? *opt->slider_value : 0);
-      break;
-      
-   default:
-      snprintf(buffer, buffer_size, "%s", opt->text);
-      break;
+   }
    }
 }
 
-// placeholder for action processing - implement this
-static void process_action(MenuAction action, int data, int player) {
-   switch (action) {
-   case MENU_ACTION_SCENE_CHANGE:
-      // change to scene specified in data
-      d_logv(3, "SceneType = %s", d_name_scene_type(data));
-      if (data < 0 || data >= SCENE_MAX) {
-         d_log("invalid scene");
-         return;
-      }
-      scene_change_to(data);
-      break;
-      
-   case MENU_ACTION_GAME_SETUP:
-      // setup game with mode specified in data
-      // TODO: this!!!!!!
-      d_logv(3, "GameModeType = %s", d_name_game_mode_type(data));
-      scene_start_game_session(data);
-      scene_change_to(SCENE_CHARACTER_SELECT);
-      break;
-      
-   case MENU_ACTION_BACK:
-      // handle back action
-      if (g_active_menu && g_active_menu->parent) {
-         menu_navigate_to_parent(g_active_menu, player);
-      }
-      // TODO: if it's a pause menu or other floating type menu, close if !g_active_menu->parent
-      break;
-      
-   case MENU_ACTION_QUIT:
-      // handle quit
-      d_logv(2, "MenuAction = %s", d_name_menu_action(action));
-      break;
-      
-   default:
-      break;
-   }
-}
+void menu_render(Menu* m, LiRen* r, int x, int y) {
+   if (!m || !r) return;
 
-static void hide_all_layers(Menu* menu, LiRen* r) {
-   if (!menu) return;
-   
-   lr_layer_set_visible(r, menu->layer_handle, false);
-   
-   for (int i = 0; i < menu->option_count; i++) {
-      if (menu->options[i].type == OPTION_TYPE_SUBMENU) {
-         hide_all_layers(menu->options[i].child, r);
-      }
-   }
-}
+   // once a font/text API is wired up, the title and options get drawn here
+   lr_draw_fill(r, m->layer, lr_get_transparent_index(r));
 
-static void menu_draw_main(Menu* menu, int chain_position, LiRen* r) {
-   if (!menu) return;
-   
-   // clear the layer
-   // lr_draw_fill(r, menu->layer_handle, PALETTE_TRANSPARENT);
-   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
-   
-   // calculate position based on chain position
-   // int base_x = 50 + (chain_position * 200); // 200 pixels between columns
-   // int base_y = 50;
-   
-   // draw menu title
-   // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
-   
-   // draw options
-   // for (int i = 0; i < menu->option_count; i++) {
-      // uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
-      // if (!menu->options[i].enabled) {
-         // color = 3; // disabled color
-      // }
-      
-      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
-                          // base_x, base_y + 30 + (i * 20), color);
-   // }
-}
+   (void)x;
+   (void)y;
+   (void)format_option;
 
-static void menu_draw_settings(Menu* menu, LiRen* r) {
-   if (!menu) return;
-   
-   // clear the menu's layer
-   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
-   
-   int base_x = 50;
-   int base_y = 50;
-   
-   // draw menu title
-   // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->title, base_x, base_y, 0);
-   
-   // draw options
-   // for (int i = 0; i < menu->option_count; i++) {
-      // uint8_t color = (i == menu->selected_option[0]) ? 7 : 1; // highlight selected
-      // if (!menu->options[i].enabled) {
-         // color = 3; // disabled color
-      // }
-
-      // int current_y = base_y + 30 + (i * 20);
-
-      // draw option text
-      // char display_text[128];
-      // format_option_text(&menu->options[i], display_text, sizeof(display_text));
-      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, display_text, base_x, current_y, color);
-   // }
-}
-
-static void menu_draw_charsel(Menu* menu, LiRen* r) {
-   if (!menu) return;
-   
-   // clear the layer
-   lr_draw_fill(r, menu->layer_handle, 35); // expose transparent
-   
-   // int base_x = 50;
-   // int base_y = 50;
-   // 
-   // grid configuration - adjust these as needed
-   // int cols = 3; // characters per row
-   // int cell_width = 120;
-   // int cell_height = 60;
-   // int grid_start_x = base_x;
-   // int grid_start_y = base_y + 40; // space below title
-   
-   // draw character grid
-   // for (int i = 0; i < menu->option_count; i++) {
-      // int row = i / cols;
-      // int col = i % cols;
-      // 
-      // int cell_x = grid_start_x + (col * cell_width);
-      // int cell_y = grid_start_y + (row * cell_height);
-      // 
-      // uint8_t color = 1; // default color
-      // bool is_selected = false;
-      
-      // check if any player has this option selected
-      // for (int player = 1; player <= MAX_PLAYERS; player++) {
-         // if (input_get_player_device(player) == -1) continue;
-         // if (i == menu->selected_option[player - 1]) {
-            // is_selected = true;
-            // color = 19 + (player - 1); // start at blue-sky
-            // break;
-         // }
-      // }
-      
-      // if (!menu->options[i].enabled) color = 3; // disabled color
-      
-      // draw character name centered in cell
-      // int text_x = cell_x + (cell_width / 2) - ((strlen(menu->options[i].text) * 8) / 2);  // assuming 8px wide font
-      // int text_y = cell_y + (cell_height / 2) - 4; // assuming 8px tall font
-      
-      // lr_draw_text(r, menu->layer_handle, FONT_ACER_8_8, menu->options[i].text,
-                          // text_x, text_y, color);
-      // TODO
-      // if (is_selected && menu->options[i].enabled) {
-         // renderer_draw_rect_outline(menu->layer_handle, cell_x - 2, cell_y - 2, 
-         //                           cell_width + 4, cell_height + 4, color);
-      // }
-   // }
+   // TODO: once the menu component owns a font handle (via menu_create
+   // taking an LR_FontHandle, or via game_get_assets), draw title at
+   // (x, y) and each option at (x, y + (i+1) * line_height). highlight
+   // any option an assigned player has its cursor on (different highlight
+   // colors per player).
 }
