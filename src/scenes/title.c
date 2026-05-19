@@ -17,8 +17,8 @@ typedef struct {
    LR_FontHandle box_font;
    LR_Rect moving_box;
    uint8_t box_color;
-   bool    x_forward;
-   bool    y_forward;
+   bool x_forward;
+   bool y_forward;
 
    int viewport_w, viewport_h;
 } TitleData;
@@ -69,14 +69,16 @@ static void draw_title_plate(TitleData* d, LiRen* r) {
    lr_draw_rect(r, d->border_layer, border_l, 10);
    lr_draw_rect(r, d->border_layer, border_b, 10);
    lr_draw_rect(r, d->border_layer, border_r, 10);
+   
    lr_draw_rect(r, d->border_layer, title_rect, 7);
 
-   lr_draw_text(r, d->border_layer, d->title_font, title_rect.x, title_rect.y, 4, "Title screen"); 
+   // lr_draw_text(r, d->border_layer, d->title_font, title_rect.x + 10, title_rect.y + 10, 4, "This is the title screen"); 
+   // lr_draw_text(r, d->border_layer, d->title_font title_rect.x + 10, title_rect.y + 35, 4, "   Press [j] to start."); 
 }
 
 static void draw_box(TitleData* d, LiRen* r) {
    lr_draw_rect(r, d->box_layer, d->moving_box, d->box_color);
-   lr_draw_text(r, d->box_layer, d->box_font, d->moving_box.x, d->moving_box.y, 4, "DVD");
+   // lr_draw_text(r, d->box_layer, d->box_font, d->moving_box.x + 28, d->moving_box.y + 42, 4, "DVD");
 }
 
 // --- vtable callbacks ---
@@ -88,8 +90,8 @@ static void title_init(Scene* s, LiRen* r) {
    d->border_layer = lr_layer_create(r, false);
    d->box_layer    = lr_layer_create(r, false);
 
-   d->title_font = 0;
-   d->box_font   = 1;
+   d->title_font = 0; // ?
+   d->box_font   = 1; // ?
    d->moving_box = (LR_Rect){0, 0, 100, 100};
    d->box_color  = 5;
    d->x_forward  = true;
@@ -145,7 +147,6 @@ static void title_destroy(Scene* s, LiRen* r) {
 // --- vtable singleton + constructor ---
 
 static const SceneVTable TITLE_VTABLE = {
-   .input_context = CONTEXT_TITLE,
    .init          = title_init,
    .update        = title_update,
    .render        = title_render,

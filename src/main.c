@@ -218,6 +218,7 @@ void game_handle_events(float delta_time) {
    }
 
    input_update(delta_time);
+   scene_stack_dispatch_input(g_stack);
 }
 
 void game_update(float delta_time) {

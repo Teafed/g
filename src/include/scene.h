@@ -9,9 +9,6 @@ typedef struct Scene Scene;
 // scenes never store state at file scope; everything lives in data,
 // lets two instances of the same scene type coexist (pause over gameplay)
 typedef struct {
-   // scenes should never call input_set_context themselves
-   GameContext input_context;
-
    void (*init) (Scene* s, LiRen* r);
    void (*update) (Scene* s, float dt);
    void (*render) (Scene* s, LiRen* r);
@@ -37,6 +34,6 @@ Scene* scene_stack_top(SceneStack* s);
 int scene_stack_depth(SceneStack* s);
 void scene_stack_update(SceneStack* s, float dt);
 void scene_stack_render(SceneStack* s, LiRen* r);
-void scene_stack_handle_input(SceneStack* s, InputEvent e, InputState st, int device_id);
+void scene_stack_dispatch_input(SceneStack* s);
 
 #endif

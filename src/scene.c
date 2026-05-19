@@ -6,6 +6,7 @@
 
 
 #include "scene.h"
+#include "input.h"
 #include "debug.h"
 
 #include <stdlib.h>
@@ -14,43 +15,15 @@
 // the stack is a fixed-size array. scenes are pushed/popped at runtime but
 // nesting is shallow in practice (title alone; or gameplay + pause)
 #define SCENE_STACK_MAX 8
+// per-call dispatch capacity. anything beyond this many edges per device
+// per frame is dropped (loudly). 32 is well above realistic mashing
+#define DISPATCH_BATCH 32
 
 struct SceneStack {
    Scene* scenes[SCENE_STACK_MAX];
    int    depth;
    LiRen* renderer;
 };
-
-// --- input handler shim ---
-//
-// input.h's context system wires one InputHandler per GameContext. our
-// vtable's handle_input takes a Scene*, so we can't register the vtable
-// callback directly. instead, for each context we register a small
-// dispatch function that looks up the current top scene and forwards.
-//
-// because the dispatcher is identical for every context, we just point
-// every context at the same shim. when the active context changes (via
-// input_set_context on push/pop), the shim gets called for whichever
-// context is active, but it always dispatches to the top scene's
-// handle_input. the GameContext value the input system passes around is
-// effectively just "which scene is on top right now."
-//
-// the shim needs access to the stack to find the top scene. since input
-// callbacks don't carry user data (see InputHandler typedef), we keep a
-// file-static pointer to the stack. set on stack_create, cleared on
-// stack_destroy. only one stack exists per process.
-
-static SceneStack* g_stack_for_input = NULL;
-
-static void scene_input_shim(InputEvent e, InputState st, int device_id) {
-   if (!g_stack_for_input) return;
-   if (g_stack_for_input->depth <= 0) return;
-
-   Scene* top = g_stack_for_input->scenes[g_stack_for_input->depth - 1];
-   if (top && top->vtable && top->vtable->handle_input) {
-      top->vtable->handle_input(top, e, st, device_id);
-   }
-}
 
 // --- internal helpers ---
 
@@ -62,16 +35,6 @@ static void scene_release(SceneStack* s, int index) {
    }
    free(sc);
    s->scenes[index] = NULL;
-}
-
-// apply the top scene's input context. called whenever the top changes
-// (push, pop, replace, replace_all). no-op if the stack is empty
-static void apply_top_context(SceneStack* s) {
-   if (s->depth <= 0) return;
-   Scene* top = s->scenes[s->depth - 1];
-   if (top && top->vtable) {
-      input_set_context(top->vtable->input_context);
-   }
 }
 
 static void scene_run_init(SceneStack* s, Scene* sc) {
@@ -89,14 +52,6 @@ SceneStack* scene_stack_create(LiRen* r) {
    }
    s->renderer = r;
    s->depth    = 0;
-
-   // wire every input context to our shim. the shim ignores the context
-   // value and dispatches to whichever scene is on top.
-   g_stack_for_input = s;
-   for (int ctx = 0; ctx < CONTEXT_MAX; ctx++) {
-      input_set_context_handler((GameContext)ctx, scene_input_shim);
-   }
-
    return s;
 }
 
@@ -108,9 +63,6 @@ void scene_stack_destroy(SceneStack* s) {
       s->depth--;
       scene_release(s, s->depth);
    }
-
-   // clear shim's stack pointer so stray inputs after destroy are no-op
-   if (g_stack_for_input == s) g_stack_for_input = NULL;
 
    free(s);
 }
@@ -135,7 +87,6 @@ void scene_stack_push(SceneStack* s, Scene* new_scene) {
 
    s->scenes[s->depth++] = new_scene;
    scene_run_init(s, new_scene);
-   apply_top_context(s);
 }
 
 void scene_stack_pop(SceneStack* s) {
@@ -148,10 +99,6 @@ void scene_stack_pop(SceneStack* s) {
 
    s->depth--;
    scene_release(s, s->depth);
-
-   // restore the now-top scene's input context. if the stack is empty,
-   // apply_top_context is a no-op
-   apply_top_context(s);
 }
 
 void scene_stack_replace(SceneStack* s, Scene* new_scene) {
@@ -179,7 +126,6 @@ void scene_stack_replace(SceneStack* s, Scene* new_scene) {
 
    s->scenes[s->depth++] = new_scene;
    scene_run_init(s, new_scene);
-   apply_top_context(s);
 }
 
 void scene_stack_replace_all(SceneStack* s, Scene* new_scene) {
@@ -195,7 +141,6 @@ void scene_stack_replace_all(SceneStack* s, Scene* new_scene) {
 
    s->scenes[s->depth++] = new_scene;
    scene_run_init(s, new_scene);
-   apply_top_context(s);
 }
 
 // --- helpers ---
@@ -232,13 +177,46 @@ void scene_stack_render(SceneStack* s, LiRen* r) {
    }
 }
 
-void scene_stack_handle_input(SceneStack* s,
-                              InputEvent e, InputState st, int device_id) {
-   // only uses for callers that want to bypass the input system's context
-   // dispatch and feed input directly to the top scene
+// drain edge events from every connected device, forward to top scene's handle_input
+void scene_stack_dispatch_input(SceneStack* s) {
    if (!s || s->depth <= 0) return;
    Scene* top = s->scenes[s->depth - 1];
-   if (top && top->vtable && top->vtable->handle_input) {
-      top->vtable->handle_input(top, e, st, device_id);
+   if (!top || !top->vtable || !top->vtable->handle_input) return;
+
+   for (int dev = 0; dev < MAX_INPUT_DEVICES; dev++) {
+      if (!input_is_device_connected(dev)) continue;
+
+      InputEventEntry batch[DISPATCH_BATCH];
+      int n;
+      bool device_done = false;
+      do {
+         n = input_drain_events(dev, batch, DISPATCH_BATCH);
+         for (int i = 0; i < n; i++) {
+            InputEventEntry* e = &batch[i];
+            InputState st = {
+               .pressed    = e->is_press,
+               .released   = !e->is_press,
+               .held       = e->is_press,
+               .duration   = 0.0f,
+               .prev_state = false,
+            };
+
+            if (s->depth <= 0) return;
+            Scene* cur = s->scenes[s->depth - 1];
+            if (!cur || !cur->vtable || !cur->vtable->handle_input) continue;
+
+            cur->vtable->handle_input(cur, e->event, st, dev);
+
+            // if the top scene changed, stop queued events to whatever is on top now
+            // remaining events in the batch dropped intentionally
+            if (s->depth <= 0 || s->scenes[s->depth - 1] != cur) {
+               while (input_drain_events(dev, batch, DISPATCH_BATCH) > 0) {
+                  // discard
+               }
+               device_done = true;
+               break;
+            }
+         }
+      } while (n == DISPATCH_BATCH && !device_done);
    }
 }
