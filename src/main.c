@@ -94,7 +94,7 @@ bool game_handle_flags(int argc, char *argv[], int* logging_mode, float* scale_f
 int main(int argc, char* argv[]) {
    // initialize w flags
    int logging_mode = LOG_VERBOSITY;
-   float scale_factor = 1.0f;
+   float scale_factor = 1.5f;
    int framerate = 60;
    if (!game_handle_flags(argc, argv, &logging_mode, &scale_factor, &framerate))
       return 1;
@@ -137,7 +137,7 @@ bool game_init(float scale_factor, int framerate) {
    // liren
    LR_Config cfg = {
       .scale_factor            = scale_factor,
-      .resolution              = LR_RES_FWVGA,
+      .resolution              = LR_RES_VGA,
       .resize_mode             = LR_RESIZE_FIT,
       .window_mode             = LR_WINDOW_WINDOWED,
       .palette                 = GAME_PALETTE,
