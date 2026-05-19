@@ -10,6 +10,7 @@
 #define MAX_INPUT_DEVICES 4
 #define MAX_KEYS_PER_DEVICE 32
 #define MAX_DEVICE_NAME_LENGTH 64
+#define INPUT_EVENT_BUFFER_SIZE 64
 #define SDL_CONTROLLER_BUTTON_LEFTTRIGGER (SDL_CONTROLLER_BUTTON_MAX)
 #define SDL_CONTROLLER_BUTTON_RIGHTTRIGGER (SDL_CONTROLLER_BUTTON_MAX + 1)
 #define SDL_CONTROLLER_BUTTON_LEFTSTICK_RIGHT (SDL_CONTROLLER_BUTTON_MAX + 2)
@@ -42,18 +43,7 @@ typedef enum {
    INPUT_MAX
 } InputEvent;
 
-// TODO: device select context, set keybind context
-// TODO: rename to InputContext?
-typedef enum {
-   CONTEXT_TITLE,
-   CONTEXT_MENU,
-   CONTEXT_DEVICE_SELECT,
-   CONTEXT_PLAY,
-   CONTEXT_DBOX,
-   CONTEXT_MAX
-} GameContext;
-
-// input state for a single input
+// input state for a single input. produced by the polling half of the api
 typedef struct {
    bool pressed;     // just pressed this frame
    bool held;        // currently being held
@@ -61,6 +51,13 @@ typedef struct {
    float duration;   // how long held in seconds
    bool prev_state;  // previous frame state for edge detection
 } InputState;
+
+// edge event in the per-device ring buffer. recorded by input_update, consumed by drain
+typedef struct {
+   InputEvent event;
+   bool       is_press;   // true = press edge, false = release edge
+   float      timestamp;  // seconds since input_init; monotonic
+} InputEventEntry;
 
 // device info for remembering controllers
 typedef struct {
@@ -83,6 +80,14 @@ typedef struct {
    bool raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 6]; // extension for triggers and left anal stick
    int16_t raw_axes[SDL_CONTROLLER_AXIS_MAX];
    bool cache_valid;
+
+   // edge event ring buffer
+   InputEventEntry events[INPUT_EVENT_BUFFER_SIZE];
+   int             event_count;
+
+   // hold-to-repeat state, per (device, event)
+   float repeat_accum[INPUT_MAX];
+   bool  repeat_fired_initial[INPUT_MAX]; // has the post-initial-delay first repeat fired
 } InputDevice;
 
 // input mapping
@@ -92,25 +97,18 @@ typedef struct {
    int device_id;
 } InputMapping;
 
-// handle input events in different contexts
-typedef void (*InputHandler)(InputEvent event, InputState state, int device_id);
-
 // main input system
 typedef struct {
    InputDevice devices[MAX_INPUT_DEVICES];
    InputMapping mappings[256];
    int mapping_count;
 
-   GameContext current_context;
-   InputHandler context_handlers[CONTEXT_MAX];
+   // monotonic clock fed from input_update's delta_time. used for event timestamps
+   float time_seconds;
 
    // player device assignments (-1 if unassigned)
    int player1_device;
    int player2_device;
-   
-   // input buffering for reliability
-   bool input_buffer_enabled;
-   float input_buffer_time;  // time to buffer inputs (in ms)
 } InputSystem;
 
 // core functions
@@ -127,22 +125,22 @@ void input_cleanup_disconnected_devices(void);
 void input_setup_default_mappings(void);
 void input_add_mapping(int raw_key, InputEvent event, int device_id);
 
-// context system
-void input_setup_handlers(void);
-void input_set_context(GameContext context);
-void input_set_context_handler(GameContext context, InputHandler handler);
-
-// input queries
+// polled queries (current frame state)
 void input_cache_device_state(int device_id);
 bool input_is_raw_pressed(InputEvent event, int device_id);
 bool input_pressed(InputEvent event, int device_id);
 bool input_held(InputEvent event, int device_id);
 bool input_released(InputEvent event, int device_id);
 float input_duration(InputEvent event, int device_id);
+InputState input_get_state(int device_id, InputEvent event);
 
-// buffered input queries
-bool input_pressed_buffered(InputEvent event, int device_id, float buffer_time);
-bool input_combo_pressed(InputEvent primary, InputEvent secondary, int device_id);
+// hold-to-repeat helper
+bool input_pressed_repeat(InputEvent event, int device_id,
+                          float initial_delay, float repeat_interval);
+
+// event buffer access
+int  input_drain_events(int device_id, InputEventEntry* out, int max);
+void input_peek_events(int device_id, const InputEventEntry** out_entries, int* out_count);
 
 // utility functions
 const InputSystem* input_get_debug_state(void); // read-only pointer

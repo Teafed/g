@@ -8,14 +8,31 @@ extern void game_shutdown(void);
 
 static InputSystem g_input = { 0 };
 
+static void record_event(int device_id, InputEvent event, bool is_press) {
+   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return;
+   InputDevice* dev = &g_input.devices[device_id];
+
+   if (dev->event_count >= INPUT_EVENT_BUFFER_SIZE) {
+      // drop oldest
+      memmove(&dev->events[0], &dev->events[1],
+              sizeof(InputEventEntry) * (INPUT_EVENT_BUFFER_SIZE - 1));
+      dev->event_count = INPUT_EVENT_BUFFER_SIZE - 1;
+      d_err("input event buffer full on device %d; dropped oldest", device_id);
+   }
+
+   dev->events[dev->event_count++] = (InputEventEntry){
+      .event     = event,
+      .is_press  = is_press,
+      .timestamp = g_input.time_seconds,
+   };
+}
+
 // core functions
 void input_init(void) {
    memset(&g_input, 0, sizeof(InputSystem));
    g_input.player1_device = -1;
    g_input.player2_device = -1;
-   g_input.current_context = CONTEXT_TITLE;
-   g_input.input_buffer_enabled = true;
-   g_input.input_buffer_time = 0.1f;  // 100ms input buffer
+   g_input.time_seconds = 0.0f;
 
    // initialize all devices as unknown and disconnected
    for (int i = 0; i < MAX_INPUT_DEVICES; i++) {
@@ -28,12 +45,12 @@ void input_init(void) {
 
    input_setup_default_mappings();
    input_scan_devices();
-   input_setup_handlers();
 }
 
 extern void game_escape(uint32_t timer);
 void input_update(float delta_time) {
    input_scan_devices(); // TODO: call this only if detect device activity?
+   g_input.time_seconds += delta_time;
 
    // update all input states for all devices
    for (int dev = 0; dev < MAX_INPUT_DEVICES; dev++) {
@@ -42,6 +59,7 @@ void input_update(float delta_time) {
       input_cache_device_state(dev);
 
       for (int event = 0; event < INPUT_MAX; event++) {
+         if (event == INPUT_NONE) continue;
          InputState* state = &device->states[event];
 
          bool currently_pressed = input_is_raw_pressed(event, dev);
@@ -50,34 +68,30 @@ void input_update(float delta_time) {
          state->pressed = currently_pressed && !state->prev_state;
          state->released = !currently_pressed && state->prev_state;
          state->held = currently_pressed;
-         
+
+         // record edge events for consumers that read the buffer (menus, scenes)
+         if (state->pressed)  record_event(dev, event, true);
+         if (state->released) record_event(dev, event, false);
+
          // store current state for next frame
          state->prev_state = currently_pressed;
-         
-         // if (currently_pressed) d_log("[%d]: %s", dev, d_name_input_event(event));
+
          if (event == INPUT_QUIT) {
             if (state->held) {
                uint32_t timer = (uint32_t)(state->duration * 1000.0f);
                game_escape(timer);
             }
          }
-         
+
          // update duration
          if (state->held) {
             state->duration += delta_time;
          } else {
             state->duration = 0.0f;
          }
-
-         // route input to current context handler
-         if (g_input.context_handlers[g_input.current_context]) {
-            if (state->pressed || (state->held && state->duration > 0.0f)) {
-               g_input.context_handlers[g_input.current_context](event, *state, dev);
-            }
-         }
       }
    }
-   
+
    // periodic cleanup
    if (timing_get_frame_count() % 1800 == 0) {  // every 30 seconds at 60fps
       input_cleanup_disconnected_devices();
@@ -99,17 +113,17 @@ void input_scan_devices(void) {
    // device 0 is always keyboard
    g_input.devices[0].connected = true;
    g_input.devices[0].last_seen_frame = timing_get_frame_count();
-   
+
    // scan for game controllers
    int num_joysticks = SDL_NumJoysticks();
-   
+
    for (int sdl_idx = 0; sdl_idx < num_joysticks; sdl_idx++) {
       if (!SDL_IsGameController(sdl_idx)) continue;
-      
+
       SDL_JoystickGUID guid = SDL_JoystickGetDeviceGUID(sdl_idx);
       const char* name = SDL_GameControllerNameForIndex(sdl_idx);
       if (!name) name = "Unknown Controller";
-      
+
       // try to find existing device with this GUID
       int device_id = input_find_device_by_guid(guid);
 
@@ -124,7 +138,7 @@ void input_scan_devices(void) {
       }
       if (device_id != -1) {
          InputDevice* device = &g_input.devices[device_id];
-         
+
          // open controller if not already open
          if (!device->controller) {
             device->controller = SDL_GameControllerOpen(sdl_idx);
@@ -134,15 +148,15 @@ void input_scan_devices(void) {
             }
             d_log("Controller opened: %s (Device %d)\n", name, device_id);
          }
-         
+
          device->connected = (device->controller != NULL);
          device->last_seen_frame = timing_get_frame_count();
-         
+
          // remember device info
          input_remember_device(device_id, name, guid, sdl_idx);
       }
    }
-   
+
    // check for disconnected controllers
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {
       InputDevice* device = &g_input.devices[i];
@@ -159,7 +173,7 @@ void input_scan_devices(void) {
 
 void input_remember_device(int device_id, const char* name, SDL_JoystickGUID guid, int sdl_id) {
    if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return;
-   
+
    DeviceInfo* info = &g_input.devices[device_id].info;
    strncpy(info->name, name, MAX_DEVICE_NAME_LENGTH - 1);
    info->name[MAX_DEVICE_NAME_LENGTH - 1] = '\0';
@@ -245,33 +259,21 @@ void input_add_mapping(int raw_key, InputEvent event, int device_id) {
    g_input.mapping_count++;
 }
 
-// context system
-void input_setup_handlers(void) { }
-
-void input_set_context(GameContext context) {
-   g_input.current_context = context;
-   d_logv(2, "GameContext = %s", d_name_game_context(context));
-}
-
-void input_set_context_handler(GameContext context, InputHandler handler) {
-   g_input.context_handlers[context] = handler;
-}
-
-// input queries
+// polled queries
 void input_cache_device_state(int device_id) {
    if (device_id == 0) return; // keyboard doesn't need caching
-   
+
    InputDevice* device = &g_input.devices[device_id];
    if (!device->controller || !SDL_GameControllerGetAttached(device->controller)) {
       device->cache_valid = false;
       return;
    }
-   
+
    // cache all button states at once
    for (int i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++) {
       device->raw_buttons[i] = SDL_GameControllerGetButton(device->controller, i);
    }
-   
+
    // cache axes
    for (int i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++) {
       device->raw_axes[i] = SDL_GameControllerGetAxis(device->controller, i);
@@ -279,9 +281,9 @@ void input_cache_device_state(int device_id) {
 
    // handle triggers as buttons
    const int16_t trigger_threshold = 8192; // about 25% pressed
-   device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX] = 
+   device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX] =
       SDL_GameControllerGetAxis(device->controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > trigger_threshold;
-   device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 1] = 
+   device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 1] =
       SDL_GameControllerGetAxis(device->controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > trigger_threshold;
 
    // handle left stick as directional buttons
@@ -293,7 +295,7 @@ void input_cache_device_state(int device_id) {
    device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 3] = (left_x < -stick_threshold); // stick left
    device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 4] = (left_y > stick_threshold); // stick down
    device->raw_buttons[SDL_CONTROLLER_BUTTON_MAX + 5] = (left_y < -stick_threshold); // stick up
-   
+
    device->cache_valid = true;
 }
 
@@ -322,40 +324,107 @@ bool input_is_raw_pressed(InputEvent event, int device_id) {
 bool input_pressed(InputEvent event, int device_id) {
    if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return false;
    if (!g_input.devices[device_id].connected) return false;
+   if (event < 0 || event >= INPUT_MAX) return false;
    return g_input.devices[device_id].states[event].pressed;
 }
 
 bool input_held(InputEvent event, int device_id) {
    if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return false;
    if (!g_input.devices[device_id].connected) return false;
+   if (event < 0 || event >= INPUT_MAX) return false;
    return g_input.devices[device_id].states[event].held;
 }
 
 bool input_released(InputEvent event, int device_id) {
    if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return false;
    if (!g_input.devices[device_id].connected) return false;
+   if (event < 0 || event >= INPUT_MAX) return false;
    return g_input.devices[device_id].states[event].released;
 }
 
 float input_duration(InputEvent event, int device_id) {
    if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return 0.0f;
    if (!g_input.devices[device_id].connected) return 0.0f;
+   if (event < 0 || event >= INPUT_MAX) return 0.0f;
    return g_input.devices[device_id].states[event].duration;
 }
 
-// buffered input queries
-bool input_pressed_buffered(InputEvent event, int device_id, float buffer_time) {
-   if (!g_input.input_buffer_enabled) return input_pressed(event, device_id);
-   
-   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return false;
-   if (!g_input.devices[device_id].connected) return false;
-   
-   InputState* state = &g_input.devices[device_id].states[event];
-   return state->pressed || (state->released && state->duration <= buffer_time);
+InputState input_get_state(int device_id, InputEvent event) {
+   InputState zero = {0};
+   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return zero;
+   if (event < 0 || event >= INPUT_MAX) return zero;
+   return g_input.devices[device_id].states[event];
 }
 
-bool input_combo_pressed(InputEvent primary, InputEvent secondary, int device_id) {
-   return input_held(primary, device_id) && input_pressed(secondary, device_id);
+// hold-to-repeat after interval
+bool input_pressed_repeat(InputEvent event, int device_id,
+                          float initial_delay, float repeat_interval) {
+   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return false;
+   if (event < 0 || event >= INPUT_MAX) return false;
+   InputDevice* dev = &g_input.devices[device_id];
+   if (!dev->connected) return false;
+
+   InputState* st = &dev->states[event];
+
+   // initial press: fire immediately, reset the timer
+   if (st->pressed) {
+      dev->repeat_accum[event] = 0.0f;
+      dev->repeat_fired_initial[event] = false;
+      return true;
+   }
+
+   if (!st->held) {
+      // not held: clear cooldown
+      dev->repeat_accum[event] = 0.0f;
+      dev->repeat_fired_initial[event] = false;
+      return false;
+   }
+
+   // accumulate against duration of hold
+   if (!dev->repeat_fired_initial[event]) {
+      // waiting for initial_delay to elapse
+      if (st->duration >= initial_delay) {
+         dev->repeat_fired_initial[event] = true;
+         dev->repeat_accum[event] = st->duration; // mark this as the last-fire time
+         return true;
+      }
+      return false;
+   }
+
+   // past initial_delay; fire every repeat_interval
+   if (st->duration - dev->repeat_accum[event] >= repeat_interval) {
+      dev->repeat_accum[event] = st->duration;
+      return true;
+   }
+   return false;
+}
+
+// event buffer access
+int input_drain_events(int device_id, InputEventEntry* out, int max) {
+   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return 0;
+   if (!out || max <= 0) return 0;
+   InputDevice* dev = &g_input.devices[device_id];
+
+   int n = dev->event_count < max ? dev->event_count : max;
+   memcpy(out, dev->events, sizeof(InputEventEntry) * n);
+
+   // shift remaining (if any) to the front
+   int remaining = dev->event_count - n;
+   if (remaining > 0) {
+      memmove(&dev->events[0], &dev->events[n],
+              sizeof(InputEventEntry) * remaining);
+   }
+   dev->event_count = remaining;
+   return n;
+}
+
+void input_peek_events(int device_id, const InputEventEntry** out_entries, int* out_count) {
+   if (out_entries) *out_entries = NULL;
+   if (out_count) *out_count = 0;
+   if (device_id < 0 || device_id >= MAX_INPUT_DEVICES) return;
+   InputDevice* dev = &g_input.devices[device_id];
+   if (out_entries) *out_entries = dev->events;
+   if (out_count) *out_count = dev->event_count;
 }
 
 // utility functions
@@ -365,7 +434,7 @@ const InputSystem* input_get_debug_state(void) {
 
 int input_find_device_by_guid(SDL_JoystickGUID guid) {
    for (int i = 1; i < MAX_INPUT_DEVICES; i++) {  // skip keyboard (device 0)
-      if (g_input.devices[i].info.valid_guid && 
+      if (g_input.devices[i].info.valid_guid &&
          memcmp(&g_input.devices[i].info.guid, &guid, sizeof(SDL_JoystickGUID)) == 0) {
          return i;
       }
