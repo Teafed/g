@@ -105,6 +105,17 @@ void lr_font_destroy(LiRen* r, LR_FontHandle handle) {
    }
 }
 
+void lr_get_glyph_size(LiRen* r, LR_FontHandle handle, int* out_w, int* out_h) {
+   Font* f = liren_find_font(r, handle);
+   if (!f) {
+      if (out_w) *out_w = 0;
+      if (out_h) *out_h = 0;
+      return;
+   }
+   if (out_w) *out_w = f->glyph_w;
+   if (out_h) *out_h = f->glyph_h;
+}
+
 void lr_draw_text(LiRen* r, LR_LayerHandle layer_handle, LR_FontHandle font_handle,
                   int x, int y, uint8_t color_index, const char* text) {
    if (!r || !r->initialized || !text) return;

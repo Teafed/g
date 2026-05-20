@@ -116,6 +116,10 @@ typedef struct {
 LR_FontHandle lr_font_create_from_pixels(LiRen* r, const LR_BitmapFontDesc* desc);
 void lr_font_destroy(LiRen* r, LR_FontHandle font);
 
+// glyph dimensions in pixels. writes 0 to out_w/out_h on invalid font.
+// out_w / out_h may be NULL if the caller doesn't care about that axis.
+void lr_get_glyph_size(LiRen* r, LR_FontHandle font, int* out_w, int* out_h);
+
 // draws text with all non-transparent glyph pixels replaced by color_index.
 void lr_draw_text(LiRen* r, LR_LayerHandle layer, LR_FontHandle font,
                   int x, int y, uint8_t color_index, const char* text);
