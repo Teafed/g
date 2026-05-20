@@ -142,12 +142,15 @@ Menu* menu_create(LiRen* r, const char* title) {
    m->option_count = 0;
    m->layer        = lr_layer_create(r, false);
    m->wrap_around  = true;
+   m->on_back      = NULL;
+   m->on_back_user = NULL;
 
    // initialize per-player state
    for (int p = 0; p < MAX_PLAYERS; p++) {
       m->players[p].cursor             = 0;
       m->players[p].unconfirmed_choice = -1;
       m->players[p].held_dir           = (InputEvent)-1;
+      m->player_active[p]              = MENU_PLAYER_AUTO;
    }
 
    return m;
@@ -266,7 +269,31 @@ void menu_set_wrap_around(Menu* m, bool wrap) {
    m->wrap_around = wrap;
 }
 
-// --- input: edge events ---
+void menu_set_on_back(Menu* m, MenuOnBackFn fn, void* user) {
+   if (!m) return;
+   m->on_back      = fn;
+   m->on_back_user = user;
+}
+
+void menu_set_player_active(Menu* m, int player, MenuPlayerActive mode) {
+   if (!m || player < 0 || player >= MAX_PLAYERS) return;
+   m->player_active[player] = mode;
+}
+
+// returns true if player p's cursor should render this frame
+// AUTO: render only if input has a device assigned to player (p+1)
+// FORCE_ON / FORCE_OFF: override
+static bool should_render_cursor(const Menu* m, int p) {
+   switch (m->player_active[p]) {
+   case MENU_PLAYER_FORCE_ON:  return true;
+   case MENU_PLAYER_FORCE_OFF: return false;
+   case MENU_PLAYER_AUTO:
+   default:
+      return input_get_player_device(p + 1) != -1;
+   }
+}
+
+// --- input: edge events ----
 
 void menu_handle_input(Menu* m, InputEvent e, InputState st, int device_id) {
    if (!m) return;
@@ -336,6 +363,8 @@ void menu_handle_input(Menu* m, InputEvent e, InputState st, int device_id) {
       // cancel an in-progress choice stage
       if (opt && opt->type == MENU_OPT_CHOICE && ps->unconfirmed_choice >= 0) {
          ps->unconfirmed_choice = -1;
+      } else if (m->on_back) {
+         m->on_back(m->on_back_user);
       }
       break;
 
@@ -477,12 +506,72 @@ static int find_staging_player(const Menu* m, int option_index) {
    return -1;
 }
 
+// fetch glyph width for an option's effective font; falls back to 8
+static int option_glyph_w(LiRen* r, const MenuOption* opt,
+                          const MenuStyle* style) {
+   LR_FontHandle f = (opt->label.font != LR_INVALID_FONT)
+                        ? opt->label.font : style->default_font;
+   if (f == LR_INVALID_FONT) return 8;
+   int w = 0;
+   lr_get_glyph_size(r, f, &w, NULL);
+   return w > 0 ? w : 8;
+}
+
+// compute the length of an option line in characters (label + suffix)
+static int option_line_chars(const MenuOption* opt) {
+   if (!opt) return 0;
+   int label_chars = opt->label.text.len;
+
+   char suffix[MENU_LINE_SCRATCH];
+   bool staged_unused = false;
+   // pass staging_player = -1 so we always get the committed-value form;
+   // staging only adds at most a couple chars and isn't worth measuring.
+   MenuPlayerState dummy[MAX_PLAYERS];
+   memset(dummy, 0, sizeof(dummy));
+   if (format_suffix(opt, -1, dummy, suffix, sizeof(suffix), &staged_unused)) {
+      return label_chars + (int)strlen(suffix);
+   }
+   return label_chars;
+}
+
+int menu_get_width(const Menu* m, const MenuStyle* style) {
+   if (!m) return 0;
+   if (!style) style = &MENU_DEFAULT_STYLE;
+   int max_chars = 0;
+   if (m->title.text.data) max_chars = m->title.text.len;
+   for (int i = 0; i < m->option_count; i++) {
+      int n = option_line_chars(&m->options[i]);
+      if (n > max_chars) max_chars = n;
+   }
+   
+   // TODO: query glyph width from liren. most fonts are width 8 but still
+   return max_chars * 8;
+}
+
+int menu_get_height(const Menu* m, const MenuStyle* style) {
+   if (!m) return 0;
+   if (!style) style = &MENU_DEFAULT_STYLE;
+
+   int h = m->option_count * style->line_height;
+   if (m->title.text.data && m->title.text.len > 0) {
+      h += style->line_height + style->title_gap;
+   }
+   return h;
+}
+
 void menu_render(Menu* m, LiRen* r, int x, int y, const MenuStyle* style) {
    if (!m || !r) return;
    if (!style) style = &MENU_DEFAULT_STYLE;
 
    // clear the menu's layer each frame; scenes don't need to clear it themselves
    lr_draw_fill(r, m->layer, lr_get_transparent_index(r));
+
+   // glyph dim for default font, used for cursor offset
+   int default_gw = 8;
+   if (style->default_font != LR_INVALID_FONT) {
+      lr_get_glyph_size(r, style->default_font, &default_gw, NULL);
+      if (default_gw <= 0) default_gw = 8;
+   }
 
    int cy = y;
 
@@ -498,52 +587,48 @@ void menu_render(Menu* m, LiRen* r, int x, int y, const MenuStyle* style) {
       MenuOption* opt = &m->options[i];
       int oy = cy + i * style->line_height;
 
-      // who, if anyone, has a cursor on this option?
       bool any_cursor_here = false;
       for (int p = 0; p < MAX_PLAYERS; p++) {
-         if (m->players[p].cursor == i) { any_cursor_here = true; break; }
-      }
-
-      // cursor glyphs (one per player whose cursor is here), drawn to
-      // the left of the option. p1 first, p2 next to it if both are here.
-      int cursor_x = x - 12;
-      LR_FontHandle cursor_font = resolve_font(&opt->label, style);
-      if (cursor_font != LR_INVALID_FONT) {
-         for (int p = 0; p < MAX_PLAYERS; p++) {
-            if (m->players[p].cursor != i) continue;
-            uint8_t cc = (p == 0) ? style->cursor_color_p1
-                                  : style->cursor_color_p2;
-            lr_draw_text(r, m->layer, cursor_font, cursor_x, oy, cc, ">");
-            cursor_x += 8; // assume ~8px wide glyph; close enough for now
+         if (m->players[p].cursor == i && should_render_cursor(m, p)) {
+            any_cursor_here = true;
+            break;
          }
       }
 
-      // label color + font
+      // resolve label font + color
       LR_FontHandle font  = resolve_font(&opt->label, style);
       uint8_t       color = resolve_option_color(opt, any_cursor_here, style);
+      int           gw    = option_glyph_w(r, opt, style);
 
-      // draw the label via textbox_render with our resolved color as fallback.
-      // we pass the resolved color as the fallback rather than mutating the
-      // textbox, since selected/disabled state is transient.
-      //
-      // NOTE: textbox_render's fallback path only fires when the TextBox's
-      // own color is UNSET. for selected/disabled to override a per-option
-      // color, we draw the label text directly with the resolved color.
+      // cursor glyphs (one per player whose cursor is here AND is rendered),
+      // drawn to the left of the option. p1 first, p2 next to it if both.
+      int cursor_x = x - default_gw - 2;
+      LR_FontHandle cursor_font = (font != LR_INVALID_FONT)
+                                     ? font : style->default_font;
+      if (cursor_font != LR_INVALID_FONT) {
+         for (int p = 0; p < MAX_PLAYERS; p++) {
+            if (m->players[p].cursor != i) continue;
+            if (!should_render_cursor(m, p)) continue;
+            uint8_t cc = (p == 0) ? style->cursor_color_p1
+                                  : style->cursor_color_p2;
+            lr_draw_text(r, m->layer, cursor_font, cursor_x, oy, cc, ">");
+            cursor_x += default_gw;
+         }
+      }
+
+      // label
       if (font != LR_INVALID_FONT && opt->label.text.data) {
          lr_draw_text(r, m->layer, font, x, oy, color, opt->label.text.data);
       }
 
-      // suffix (toggle value, slider int, choice name, optionally staged)
+      // suffix
       int staging_player = find_staging_player(m, i);
       char suffix[MENU_LINE_SCRATCH];
       bool staged = false;
       if (format_suffix(opt, staging_player, m->players,
                         suffix, sizeof(suffix), &staged)) {
          uint8_t suffix_color = staged ? style->staged_color : color;
-
-         // suffix_x is just past the end of the label
-         // update to use lr_text_width once liren has it
-         int suffix_x = x + opt->label.text.len * 8; // approximation
+         int suffix_x = x + opt->label.text.len * gw;
          if (font != LR_INVALID_FONT) {
             lr_draw_text(r, m->layer, font, suffix_x, oy, suffix_color, suffix);
          }

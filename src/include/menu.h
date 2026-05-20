@@ -93,6 +93,20 @@ typedef struct {
 // global default style. defined in menu.c. callers can copy + modify it
 extern const MenuStyle MENU_DEFAULT_STYLE;
 
+// callback fired when B is pressed and no staged choice is pending
+typedef void (*MenuOnBackFn)(void* user);
+
+// per-player active override
+//   MENU_PLAYER_AUTO      -> default; cursor renders only when this player
+//                           has an assigned input device (input_get_player_device != -1)
+//   MENU_PLAYER_FORCE_ON  -> cursor always renders for this player
+//   MENU_PLAYER_FORCE_OFF -> cursor never renders for this player
+typedef enum {
+   MENU_PLAYER_AUTO = 0,
+   MENU_PLAYER_FORCE_ON,
+   MENU_PLAYER_FORCE_OFF,
+} MenuPlayerActive;
+
 // scenes own Menu* in their per-scene data struct.
 // any scenes that want submenus have to track the active Menu* and swap it themselves.
 typedef struct {
@@ -101,9 +115,13 @@ typedef struct {
    int option_count;
 
    MenuPlayerState players[MAX_PLAYERS];
+   MenuPlayerActive player_active[MAX_PLAYERS]; // per-player render gate
 
    LR_LayerHandle layer;
    bool wrap_around;
+
+   MenuOnBackFn on_back;
+   void* on_back_user;
 } Menu;
 
 Menu* menu_create (LiRen* r, const char* title);
@@ -132,6 +150,17 @@ void menu_set_title_color(Menu* m, int16_t color);
 
 // default cursor wrap is true
 void menu_set_wrap_around(Menu* m, bool wrap);
+
+// B-to-go-back handler. fires on B press when no choice is being staged
+void menu_set_on_back(Menu* m, MenuOnBackFn fn, void* user);
+
+// per-player render override. default is MENU_PLAYER_AUTO
+void menu_set_player_active(Menu* m, int player, MenuPlayerActive mode);
+
+// width = longest line (label + suffix) at the option's effective font.
+int menu_get_width (const Menu* m, const MenuStyle* style);
+// height = title + title_gap + option_count * line_height
+int menu_get_height(const Menu* m, const MenuStyle* style);
 
 // per-frame
 // menu_handle_input: called once per InputEvent for edge actions
