@@ -2,6 +2,7 @@
 #include "scenes/main_menu.h"
 #include "scene.h"
 #include "game.h"
+#include "game_assets.h"
 #include "input.h"
 #include "debug.h"
 
@@ -9,12 +10,14 @@
 #include <stdlib.h>
 
 typedef struct {
+   GameAssets* assets;
+   LR_FontHandle title_font;
+   LR_FontHandle box_font;
+
    LR_LayerHandle bg_layer;
    LR_LayerHandle border_layer;
    LR_LayerHandle box_layer;
 
-   LR_FontHandle title_font;
-   LR_FontHandle box_font;
    LR_Rect moving_box;
    uint8_t box_color;
    bool x_forward;
@@ -34,7 +37,7 @@ static void cycle_color(TitleData* d) {
 int temp = 0;
 static void bounce_box(TitleData* d, int amt) {
    temp++;
-   if (temp % 30 != 0) return;
+   if (temp % 3 != 0) return;
    
    if (d->x_forward) {
       if (d->moving_box.x + d->moving_box.w < d->viewport_w)
@@ -72,13 +75,13 @@ static void draw_title_plate(TitleData* d, LiRen* r) {
    
    lr_draw_rect(r, d->border_layer, title_rect, 7);
 
-   // lr_draw_text(r, d->border_layer, d->title_font, title_rect.x + 10, title_rect.y + 10, 4, "This is the title screen"); 
-   // lr_draw_text(r, d->border_layer, d->title_font title_rect.x + 10, title_rect.y + 35, 4, "   Press [j] to start."); 
+   lr_draw_text(r, d->border_layer, d->title_font, title_rect.x + 10, title_rect.y + 10, 4, "This is the title screen"); 
+   lr_draw_text(r, d->border_layer, d->title_font, title_rect.x + 10, title_rect.y + 35, 4, "   Press [j] to start."); 
 }
 
 static void draw_box(TitleData* d, LiRen* r) {
    lr_draw_rect(r, d->box_layer, d->moving_box, d->box_color);
-   // lr_draw_text(r, d->box_layer, d->box_font, d->moving_box.x + 28, d->moving_box.y + 42, 4, "DVD");
+   lr_draw_text(r, d->box_layer, d->box_font, d->moving_box.x + 28, d->moving_box.y + 42, 4, "DVD");
 }
 
 // --- vtable callbacks ---
@@ -90,8 +93,9 @@ static void title_init(Scene* s, LiRen* r) {
    d->border_layer = lr_layer_create(r, false);
    d->box_layer    = lr_layer_create(r, false);
 
-   d->title_font = 0; // ?
-   d->box_font   = 1; // ?
+   d->assets     = game_get_assets();
+   d->title_font = game_assets_get_font(d->assets, "Master");
+   d->box_font   = game_assets_get_font(d->assets, "Compis");
    d->moving_box = (LR_Rect){0, 0, 100, 100};
    d->box_color  = 5;
    d->x_forward  = true;
